@@ -1,5 +1,5 @@
 local addonName, AA = ...
-AA.version = "0.7.1"
+AA.version = "0.7.2-beta.1"
 AA.preview = nil
 AA.selected = {}
 AA.status = "Prêt : optimise en 1 clic ou après une quête / un niveau."
