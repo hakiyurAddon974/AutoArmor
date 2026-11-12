@@ -33,11 +33,19 @@ jobs:
         with:
           args: -d
 
+      - name: Verifier la creation du ZIP
+        shell: bash
+        run: |
+          ls -lah .release/
+          find .release -maxdepth 1 -type f -name '*.zip' -print
+          compgen -G '.release/*.zip' > /dev/null || { echo "ERREUR : aucun ZIP genere par le packager."; exit 1; }
+
       - name: Conserver le ZIP de test
         uses: actions/upload-artifact@v7
         with:
           name: AutoArmor-ZIP-test
           path: .release/*.zip
+          include-hidden-files: true
           if-no-files-found: error
 
   publication:
