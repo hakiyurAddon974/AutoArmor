@@ -1,0 +1,25 @@
+## Interface: 16001
+## Title: AutoArmor |cff7dd7ffv0.7.1|r
+## Notes: Optimise les armures, armes et bijoux de tes sacs selon ta classe et ton rôle, en un clic ou après quête/niveau. Protections, diagnostic et historique.
+## IconTexture: Interface\AddOns\AutoArmor\Textures\AutoArmorIcon
+## Author: Projet personnel AutoArmor
+## Version: 0.7.1
+## X-Curse-Project-ID: 1800518
+## SavedVariables: AutoArmorDB
+
+Core.lua
+Database.lua
+Profiles.lua
+Scanner.lua
+Diagnostic.lua
+Protection.lua
+Manual.lua
+History.lua
+Equipment.lua
+Undo.lua
+Restore.lua
+Notifications.lua
+Quest.lua
+Automation.lua
+UI.lua
+Buttons.lua

@@ -1,0 +1,14 @@
+package-as: AutoArmor
+ignore:
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - README.md
+  - LISEZ-MOI.md
+  - CHANGEMENTS-0.5.1.md
+  - CHANGEMENTS-0.6.0.md
+  - CHANGEMENTS-0.7.0.md
+  - CHANGEMENTS-0.7.1.md
+  - Textures/AutoArmorButton-preview.png
+  - Textures/AutoArmorIcon-preview.png
+  - Textures/AutoArmorLogo.png
