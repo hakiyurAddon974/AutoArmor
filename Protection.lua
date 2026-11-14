@@ -23,7 +23,7 @@ function AA:ToggleItemProtection(id,name)
         self.db.protectedItems[key]=nil
     else
         self.db.protectedItems[key]=true
-        self.db.protectedNames[key]=name or ("Objet "..key)
+        self.db.protectedNames[key]=name or self:TF("Objet %d", tonumber(key) or 0)
     end
     self:InvalidatePreview()
     self:SetStatus("Protection d'objet mise à jour.")
@@ -52,7 +52,7 @@ function AA:GetProtectableItems()
     for key,isProtected in pairs(self.db.protectedItems) do
         local id=tonumber(key)
         if isProtected and id and not seen[id] then
-            results[#results+1]={id=id,name=self.db.protectedNames[key] or ("Objet "..id),where="Absent"}
+            results[#results+1]={id=id,name=self.db.protectedNames[key] or self:TF("Objet %d", id),where="Absent"}
         end
     end
     table.sort(results,function(a,b)

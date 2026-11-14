@@ -5,7 +5,8 @@ local function Label(parent, font, text, x, y, width)
     l:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
     l:SetWidth(width or 600)
     l:SetJustifyH("LEFT")
-    l:SetText(text)
+    l:SetText(AA:Tr(text))
+    AA:LocalizeWidget(l, text)
     return l
 end
 
@@ -13,7 +14,8 @@ local function Button(parent, text, w, h, x, y, fn)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(w, h)
     b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-    b:SetText(text)
+    b:SetText(AA:Tr(text))
+    AA:LocalizeWidget(b, text)
     b:SetScript("OnClick", fn)
     return b
 end
@@ -25,7 +27,8 @@ local function Check(parent, text, x, y, fn)
     if text and text ~= "" then
         local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         label:SetPoint("LEFT", b, "RIGHT", 4, 0)
-        label:SetText(text)
+        label:SetText(AA:Tr(text))
+        AA:LocalizeWidget(label, text)
     end
     b:SetScript("OnClick", function(self) fn(not not self:GetChecked()) end)
     return b
@@ -93,7 +96,7 @@ function AA:CreateUI()
     f:SetScript("OnDragStart", function(self) self:StartMoving() end)
     f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     f:Hide()
-    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — Mon équipement") end
+    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. AA:Tr("Mon équipement")) end
     if UISpecialFrames then table.insert(UISpecialFrames, "AutoArmorOptionsWindow") end
 
     local pages = {}
@@ -170,7 +173,15 @@ function AA:CreateUI()
 
     local settings = pages.settings
     local settingsScroll = CreateFrame("ScrollFrame", "AutoArmorSettingsScroll05", settings, "UIPanelScrollFrameTemplate")
-    settingsScroll:SetPoint("TOPLEFT", settings, "TOPLEFT", 0, 0)
+    -- The language selector remains visible even when settings are scrolled.
+    Label(settings, "GameFontNormalSmall", "Langue de l'interface :", 14, -8, 140)
+    f.languagePicker = Selector(settings, 164, -4, 166, function()
+        return {
+            {text="English", value="en"},
+            {text="Français", value="fr"},
+        }
+    end, function(code) AA:SetLanguage(code) end)
+    settingsScroll:SetPoint("TOPLEFT", settings, "TOPLEFT", 0, -40)
     settingsScroll:SetPoint("BOTTOMRIGHT", settings, "BOTTOMRIGHT", -23, 0)
     local settingsBody = CreateFrame("Frame", nil, settingsScroll)
     settingsBody:SetSize(670, 1280)
@@ -179,9 +190,9 @@ function AA:CreateUI()
     f.playerInfo = Label(settingsBody, "GameFontHighlightSmall", "", 16, -42, 660)
     Label(settingsBody, "GameFontNormalSmall", "Mon profil :", 16, -75, 130)
     f.profilePicker = Selector(settingsBody, 156, -71, 345, function()
-        local items = {{text="Automatique (selon mon personnage)", value="auto"}}
+        local items = {{text=AA:Tr("Automatique (selon mon personnage)"), value="auto"}}
         for _, p in ipairs(AA.profiles[AA:GetClass()] or {}) do
-            items[#items+1] = {text=p.label, value=p.id}
+            items[#items+1] = {text=AA:Tr(p.label), value=p.id}
         end
         return items
     end, function(id) AA:SetOption("profile", id) end)
@@ -303,9 +314,9 @@ function AA:CreateUI()
         row.restore = Button(row, "Restaurer", 118, 25, 535, -14, function() end)
         row.restore:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Restaurer uniquement cette pièce", .5, .86, 1)
-            GameTooltip:AddLine("L'ancienne pièce doit encore être dans les sacs.", 1, 1, 1)
-            GameTooltip:AddLine("Impossible pendant le combat ou si l'emplacement est verrouillé.", 1, 1, 1)
+            GameTooltip:SetText(AA:Tr("Restaurer uniquement cette pièce"), .5, .86, 1)
+            GameTooltip:AddLine(AA:Tr("L'ancienne pièce doit encore être dans les sacs."), 1, 1, 1)
+            GameTooltip:AddLine(AA:Tr("Impossible pendant le combat ou si l'emplacement est verrouillé."), 1, 1, 1)
             GameTooltip:Show()
         end)
         row.restore:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -364,8 +375,15 @@ function AA:RefreshUI()
     if not f or not self.db then return end
     local p = self:GetProfile()
     local className = select(1, UnitClass("player")) or "?"
-    f.playerInfo:SetText(className .. " • niveau " .. (UnitLevel("player") or "?") .. " • " .. p.label)
-    f.profilePicker:SetText((self.db.profile == "auto" and "Auto : " or "") .. p.label)
+    if self:GetLanguage() == "en" then
+        local classToken = select(2, UnitClass("player"))
+        className = ({WARRIOR="Warrior",PALADIN="Paladin",HUNTER="Hunter",ROGUE="Rogue",
+            PRIEST="Priest",MAGE="Mage",WARLOCK="Warlock",SHAMAN="Shaman",DRUID="Druid"})[classToken] or className
+    end
+    f.playerInfo:SetText(self:TF("%s • niveau %s • %s", className, tostring(UnitLevel("player") or "?"), self:Tr(p.label)))
+    f.profilePicker:SetText((self.db.profile == "auto" and self:Tr("Auto : ") or "") .. self:Tr(p.label))
+    f.languagePicker:SetText(self:GetLanguage() == "fr" and "Français" or "English")
+    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. self:Tr("Mon équipement")) end
     f.statusText:SetText(self.status)
     f.statusText:SetTextColor(unpack(self.statusColor))
     f.quickButton:SetEnabled(not self.busy)
@@ -378,14 +396,14 @@ function AA:RefreshUI()
         local locked = self:IsSlotProtected(slot)
         local offer = self.preview and self.preview[slot]
         local worn = self:ReadWorn(slot)
-        row.worn:SetText(worn.level and ("ilvl " .. worn.level) or (worn.link and "?" or "Vide"))
+        row.worn:SetText(worn.level and ("ilvl " .. worn.level) or (worn.link and "?" or self:Tr("Vide")))
         SetTooltip(row.wornTip, worn.link)
         SetTooltip(row.offerTip, offer and offer.link or nil)
         row.lock:SetChecked(not not self.db.locked[slot])
         row.select:SetChecked((offer and self.selected[slot]) or false)
         row.select:SetEnabled(not locked and not self.busy and offer ~= nil)
-        if locked then row.offer:SetText("|cffffbd78Protégé|r")
-        elseif not self.preview then row.offer:SetText("|cffaaaaaaClique sur Vérifier mes sacs|r")
+        if locked then row.offer:SetText("|cffffbd78" .. self:Tr("Protégé") .. "|r")
+        elseif not self.preview then row.offer:SetText("|cffaaaaaa" .. self:Tr("Clique sur Vérifier mes sacs") .. "|r")
         elseif offer then
             local smartWeapon = self:IsWeaponSlot(slot) and self.db.smartWeapons and p.weights
             local bonus = (self.db.scoringMode == "role" or smartWeapon) and p.weights
@@ -393,7 +411,7 @@ function AA:RefreshUI()
                 or ("ilvl " .. offer.level .. " (+" .. (offer.level - offer.currentLevel) .. ")")
             row.offer:SetText(offer.link .. " |cff63dca0" .. bonus .. "|r")
             if self.selected[slot] then count = count + 1 end
-        else row.offer:SetText("|cffaaaaaaAucune amélioration|r") end
+        else row.offer:SetText("|cffaaaaaa" .. self:Tr("Aucune amélioration") .. "|r") end
     end
     f.applyButton:SetEnabled(count > 0 and not self.busy)
     f.ilvlCheck:SetChecked(self.db.scoringMode == "ilvl")
@@ -409,10 +427,9 @@ function AA:RefreshUI()
     f.notifyCheck:SetChecked(self.db.showNotifications)
     f.manualCheck:SetChecked(self.db.respectManualChanges)
     local hold = self:ManualHoldCount()
-    f.manualInfo:SetText(hold .. " emplacement(s) en pause pour les automatismes.\n" ..
-        "Un clic sur Optimiser permet de reprendre la main.")
+    f.manualInfo:SetText(self:TF("%d emplacement(s) en pause pour les automatismes.\nUn clic sur Optimiser permet de reprendre la main.", hold))
     f.manualReset:SetEnabled(hold > 0)
-    f.toastMoveButton:SetText(self.toastPositioning and "Terminer" or "Déplacer")
+    f.toastMoveButton:SetText(self:Tr(self.toastPositioning and "Terminer" or "Déplacer"))
     if f.activeTab == "protection" then self:RefreshProtectionPage() end
     if f.activeTab == "history" then self:RefreshHistoryPage() end
     if f.activeTab == "diagnostic" then self:RefreshDiagnosticPage() end
@@ -428,9 +445,9 @@ function AA:RefreshProtectionPage()
         local entry=list[(self.protectionPage-1)*11+i]
         if entry then
             row:Show()
-            local marker=self:IsItemProtected(entry.id) and "|cffffd078[Protégé]|r " or ""
-            row.label:SetText(marker..entry.name.." |cff999999("..entry.where..")|r")
-            row.toggle:SetText(self:IsItemProtected(entry.id) and "Autoriser" or "Protéger")
+            local marker=self:IsItemProtected(entry.id) and ("|cffffd078" .. self:Tr("[Protégé]") .. "|r ") or ""
+            row.label:SetText(marker..entry.name.." |cff999999("..self:Tr(entry.where)..")|r")
+            row.toggle:SetText(self:Tr(self:IsItemProtected(entry.id) and "Autoriser" or "Protéger"))
             row.toggle:SetScript("OnClick",function()
                 AA:ToggleItemProtection(entry.id,entry.name)
             end)
@@ -439,12 +456,12 @@ function AA:RefreshProtectionPage()
     end
     f.protectPrev:SetEnabled(self.protectionPage>1)
     f.protectNext:SetEnabled(self.protectionPage<maxPage)
-    f.protectCount:SetText(#list.." objet(s) • page "..self.protectionPage.."/"..maxPage)
+    f.protectCount:SetText(self:TF("%d objet(s) • page %d/%d", #list, self.protectionPage, maxPage))
 end
 
 
 local function SimpleItemName(link)
-    if type(link) ~= "string" then return "Vide" end
+    if type(link) ~= "string" then return AA:Tr("Vide") end
     local name = link:match("%[(.-)%]") or link
     if #name > 32 then name = name:sub(1, 29) .. "..." end
     return name
@@ -478,7 +495,7 @@ function AA:RefreshHistoryPage()
     end
     f.historyPrev:SetEnabled(self.historyPage > 1)
     f.historyNext:SetEnabled(self.historyPage < maxPage)
-    f.historyCount:SetText(#entries .. " changement(s) | page " .. self.historyPage .. "/" .. maxPage)
+    f.historyCount:SetText(self:TF("%d changement(s) | page %d/%d", #entries, self.historyPage, maxPage))
 end
 
 
@@ -493,11 +510,11 @@ function AA:RefreshDiagnosticPage()
         local entry = results[(self.diagnosticPage - 1) * perPage + i]
         if entry then
             row:Show()
-            local name = entry.label or "Objet"
+            local name = entry.label or self:Tr("Objet")
             if #name > 46 then name = name:sub(1, 43) .. "..." end
             row.title:SetText(name .. "  |  ilvl " .. (entry.level or "?"))
-            local where = entry.slot and self:HistorySlotName(entry.slot) or "Équipement"
-            row.detail:SetText("|cffffbf73" .. entry.reason .. "|r  |  " .. where)
+            local where = entry.slot and self:HistorySlotName(entry.slot) or self:Tr("Équipement")
+            row.detail:SetText("|cffffbf73" .. self:Tr(entry.reason) .. "|r  |  " .. where)
             SetTooltip(row.tip, entry.link)
         else
             row:Hide()
@@ -505,12 +522,12 @@ function AA:RefreshDiagnosticPage()
     end
     f.diagnosticPrev:SetEnabled(self.diagnosticPage > 1)
     f.diagnosticNext:SetEnabled(self.diagnosticPage < totalPages)
-    f.diagnosticCount:SetText(#results .. " objet(s) | page " .. self.diagnosticPage .. "/" .. totalPages)
+    f.diagnosticCount:SetText(self:TF("%d objet(s) | page %d/%d", #results, self.diagnosticPage, totalPages))
     if self.diagnosticResults then
         local loading = self.diagnosticLoading or 0
-        local more = loading > 0 and (" • " .. loading .. " donnée(s) en chargement") or ""
-        f.diagnosticSummary:SetText("Objets non retenus : " .. #results .. more)
+        local more = loading > 0 and self:TF(" • %d donnée(s) en chargement", loading) or ""
+        f.diagnosticSummary:SetText(self:TF("Objets non retenus : %d%s", #results, more))
     else
-        f.diagnosticSummary:SetText("Clique sur Actualiser pour analyser tes sacs")
+        f.diagnosticSummary:SetText(self:Tr("Clique sur Actualiser pour analyser tes sacs"))
     end
 end

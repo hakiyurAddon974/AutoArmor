@@ -34,7 +34,8 @@ function AA:ShowQuestRecommendation()
         bg:SetAllPoints(); bg:SetColorTexture(.055,.09,.14,.96)
         local title=f:CreateFontString(nil,"OVERLAY","GameFontNormal")
         title:SetPoint("TOPLEFT",f,"TOPLEFT",10,-9)
-        title:SetText("AutoArmor • Conseil de quête")
+        title:SetText(self:Tr("AutoArmor • Conseil de quête"))
+        f.title = title
         local msg=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
         msg:SetPoint("TOPLEFT",f,"TOPLEFT",10,-31)
         msg:SetWidth(230)
@@ -45,8 +46,8 @@ function AA:ShowQuestRecommendation()
         self.questPanel=f
     end
     local mode=self.db.scoringMode=="role" and self:GetProfile().weights and "score" or "ilvl"
-    local txt="Choix n°"..best.index.." : "..(best.link or "").."\n"
-    txt=txt.."Gain estimé ("..mode..") : +"..string.format("%.1f",best.offer.gain).."."
+    local txt = self:TF("Choix n°%d : %s\nGain estimé (%s) : +%s.", best.index, best.link or "", mode, string.format("%.1f", best.offer.gain))
+    self.questPanel.title:SetText(self:Tr("AutoArmor • Conseil de quête"))
     self.questPanel.message:SetText(txt)
     self.questPanel:Show()
 end

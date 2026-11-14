@@ -117,6 +117,6 @@ function AA:AnalyzeDiagnostics()
     self.diagnosticResults = ignored
     self.diagnosticPage = 1
     self.diagnosticLoading = loading
-    self:SetStatus(#ignored .. " objet(s) équipable(s) ignoré(s) examinés.")
+    self:SetStatus(self:TF("%d objet(s) équipable(s) ignoré(s) examinés.", #ignored))
     if self.RefreshDiagnosticPage then self:RefreshDiagnosticPage() end
 end

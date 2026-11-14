@@ -46,7 +46,7 @@ function AA:StartEquipmentQueue(jobs,reason)
         self:SetStatus("Équipement demandé : vérification en cours…")
         self:VerifyEquipmentChanges(before,attempted,failed,skipped,reason,jobs)
     else
-        self:SetStatus("Aucune modification : "..(failed+skipped).." demande(s) refusée(s) ou ignorée(s).")
+        self:SetStatus(self:TF("Aucune modification : %d demande(s) refusée(s) ou ignorée(s).", failed + skipped))
         if reason=="manual" then self:Notify(self.status) end
     end
 end
@@ -84,5 +84,5 @@ function AA:EquipSelected(quick)
         self:ReleaseManualOverrides(slots)
     end
     self:StartEquipmentQueue(jobs,"manual")
-    if unknown>0 then self:SetStatus(unknown.." objet(s) encore en chargement : réessaie si nécessaire.") end
+    if unknown>0 then self:SetStatus(self:TF("%d objet(s) encore en chargement : réessaie si nécessaire.", unknown)) end
 end

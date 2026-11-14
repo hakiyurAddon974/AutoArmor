@@ -74,7 +74,8 @@ function AA:BeginToastPositioning()
     toastSeq = toastSeq + 1 -- annule l'eventuelle fermeture programmee
     self.toastPositioning = true
     self.toast:EnableMouse(true)
-    self.toast.message:SetText("Glisse-moi où tu veux. Clic droit pour terminer.")
+    self.toastRaw = "Glisse-moi où tu veux. Clic droit pour terminer."
+    self.toast.message:SetText(self:Tr(self.toastRaw))
     self.toast.message:SetTextColor(.87, .9, 1)
     self.toast:Show()
     self:SetStatus("Déplace la notification, puis clic droit dessus pour terminer.")
@@ -105,7 +106,8 @@ function AA:Notify(message, r, g, b)
     if not self.toast or self.toastPositioning then return end
     toastSeq = toastSeq + 1
     local serial = toastSeq
-    self.toast.message:SetText(message)
+    self.toastRaw = (message == self.status and self.statusRaw) or message
+    self.toast.message:SetText(self:Tr(self.toastRaw))
     self.toast.message:SetTextColor(r or .87, g or .9, b or 1)
     self.toast:Show()
     if C_Timer and C_Timer.After then

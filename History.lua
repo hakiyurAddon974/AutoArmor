@@ -3,14 +3,14 @@ local limit = 30
 local names = {}
 
 function AA:HistorySourceName(reason)
-    return ({manual = "Bouton", quest = "Quête", level = "Niveau", undo = "Restauration"})[reason] or "Optimisation"
+    return self:Tr(({manual = "Bouton", quest = "Quête", level = "Niveau", undo = "Restauration"})[reason] or "Optimisation")
 end
 
 function AA:HistorySlotName(slot)
     if not names[slot] then
         for _, def in ipairs(self.slots) do names[def.slot] = def.name end
     end
-    return names[slot] or ("Emplacement " .. tostring(slot))
+    return names[slot] and self:Tr(names[slot]) or self:TF("Emplacement %d", slot)
 end
 
 function AA:AddHistory(reason, changes)

@@ -1,8 +1,9 @@
 local addonName, AA = ...
-AA.version = "0.7.3-beta.6"
+AA.version = "0.7.4-beta.1"
 AA.preview = nil
 AA.selected = {}
-AA.status = "Prêt : optimise en 1 clic ou après une quête / un niveau."
+AA.status = "Ready: optimize in one click or after a quest or level-up."
+AA.statusRaw = "Prêt : optimise en 1 clic ou après une quête / un niveau."
 AA.statusColor = {.75, .83, .94}
 AA.busy = false
 
@@ -23,7 +24,8 @@ function AA:Notify(message, r, g, b)
 end
 
 function AA:SetStatus(message, r, g, b)
-    self.status = message
+    self.statusRaw = message
+    self.status = self:Tr(message)
     self.statusColor = {r or .75, g or .83, b or .94}
     if self.RefreshUI then self:RefreshUI() end
 end
@@ -54,8 +56,8 @@ function AA:Analyze()
         self.selected[slot] = true
         count = count + 1
     end
-    local suffix = unknown > 0 and (" " .. unknown .. " objets non chargés ; réessaie plus tard.") or ""
-    self:SetStatus(count .. " amélioration(s) trouvée(s)." .. suffix, .45, .9, .7)
+    local suffix = unknown > 0 and self:TF(" %d objets non chargés ; réessaie plus tard.", unknown) or ""
+    self:SetStatus(self:TF("%d amélioration(s) trouvée(s).", count) .. suffix, .45, .9, .7)
 end
 
 function AA:OpenOptions()

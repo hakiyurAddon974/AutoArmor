@@ -23,7 +23,7 @@ function AA:VerifyEquipmentChanges(before, attempted, failed, skipped, reason, j
         if #changed > 0 then
             AA.lastUndo = restore
             AA:AddHistory(reason, changed)
-            local message = #changed .. " pièce(s) modifiee(s). Annuler est disponible."
+            local message = AA:TF("%d pièce(s) modifiee(s). Annuler est disponible.", #changed)
             AA:SetStatus(message, .45, .9, .7)
             AA:Notify(message)
         else
@@ -107,8 +107,8 @@ function AA:UndoLast()
             end
         end
         if count > 0 then self:AddHistory("undo", changed) end
-        local message = count .. " pièce(s) restaurée(s)."
-        if missing > 0 then message = message .. " " .. missing .. " indisponible(s)." end
+        local message = self:TF("%d pièce(s) restaurée(s).", count)
+        if missing > 0 then message = message .. self:TF(" %d indisponible(s).", missing) end
         self:SetStatus(message)
         self:Notify(message)
         self:InvalidatePreview()

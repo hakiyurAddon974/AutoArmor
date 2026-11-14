@@ -125,7 +125,7 @@ function AA:RestoreHistoryEntry(historyIndex, changeIndex)
                 AA.db.manualOverrides[tostring(slot)] = true
             end
             AA.lastUndo = current and {[slot]=current} or nil
-            AA:SetStatus(AA:HistorySlotName(slot) .. " restauré(e).", .45, .9, .7)
+            AA:SetStatus(AA:TF("%s restauré(e).", AA:HistorySlotName(slot)), .45, .9, .7)
             AA:Notify(AA.status)
         else
             AA:ClearEquipmentRequest(slot, wanted)

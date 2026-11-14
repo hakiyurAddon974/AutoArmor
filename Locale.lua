@@ -1,0 +1,265 @@
+local addonName, AA = ...
+-- AutoArmor translations are independent from the language of the WoW client.
+-- Legacy French strings are stable keys; the English translation is the default.
+local en = {
+    [" %d indisponible(s)."] = " %d unavailable.",
+    [" %d objets non chargés ; réessaie plus tard."] = " %d items still loading; try again later.",
+    [" • %d donnée(s) en chargement"] = " • %d item(s) still loading",
+    ["%d amélioration(s) trouvée(s)."] = "%d upgrade(s) found.",
+    ["%d changement(s) | page %d/%d"] = "%d change(s) | page %d/%d",
+    ["%d emplacement(s) en pause pour les automatismes.\nUn clic sur Optimiser permet de reprendre la main."] = "%d slot(s) paused for auto-equip.\nClick Optimize to resume manual control.",
+    ["%d objet(s) encore en chargement : réessaie si nécessaire."] = "%d item(s) still loading; retry if needed.",
+    ["%d objet(s) | page %d/%d"] = "%d item(s) | page %d/%d",
+    ["%d objet(s) équipable(s) ignoré(s) examinés."] = "%d ignored equippable item(s) checked.",
+    ["%d objet(s) • page %d/%d"] = "%d item(s) • page %d/%d",
+    ["%d pièce(s) modifiee(s). Annuler est disponible."] = "%d item(s) equipped. Undo is available.",
+    ["%d pièce(s) restaurée(s)."] = "%d item(s) restored.",
+    ["%s restauré(e)."] = "%s restored.",
+    ["%s • niveau %s • %s"] = "%s • level %s • %s",
+    ["AMÉLIORATION"] = "UPGRADE",
+    ["Absent"] = "Missing",
+    ["Activé par défaut. Sans rôle connu : comparaison de l'ilvl.\nConfiguration conservée (1 ou 2 mains, bouclier, distance).\nEn Tank, un bouclier déjà porté reste en place jusqu'à ton choix."] = "Enabled by default. Without a known role, compare item level.\nKeep current weapon setup (one/two hands, shield, ranged).\nFor tanks, keep an equipped shield until you choose otherwise.",
+    ["Actualiser l'analyse"] = "Refresh Analysis",
+    ["Adapter les armes à ma classe et à mon rôle"] = "Match weapons to my class and role",
+    ["Afficher une petite notification après optimisation"] = "Show a small notification after optimizing",
+    ["Affliction (DPS)"] = "Affliction (DPS)",
+    ["Amélioration (DPS)"] = "Enhancement (DPS)",
+    ["Ancienne pièce absente des sacs ou données non chargées."] = "Previous item is not in your bags, or its data has not loaded.",
+    ["Anneau 1"] = "Ring 1",
+    ["Anneau 2"] = "Ring 2",
+    ["Annuler"] = "Undo",
+    ["Après une quête qui donne de l'équipement"] = "After a quest rewards equipment",
+    ["Arcanes (DPS)"] = "Arcane (DPS)",
+    ["Arme ou configuration incompatible (1 main / 2 mains / bouclier)"] = "Incompatible weapon setup (1H / 2H / shield)",
+    ["Armes (DPS)"] = "Arms (DPS)",
+    ["Armes désactivées dans les réglages"] = "Weapons disabled in settings",
+    ["Armes et recommandations"] = "Weapons and Recommendations",
+    ["Assassinat (DPS)"] = "Assassination (DPS)",
+    ["Aucun changement confirmé par le jeu."] = "The game has not confirmed any equipment changes.",
+    ["Aucun gain selon les critères actuels"] = "No upgrade under current settings",
+    ["Aucune amélioration"] = "No upgrade",
+    ["Aucune amélioration équipable trouvée."] = "No equippable upgrades found.",
+    ["Aucune modification : %d demande(s) refusée(s) ou ignorée(s)."] = "No changes: %d request(s) rejected or skipped.",
+    ["Aucune optimisation à annuler pendant cette session."] = "No optimization to undo during this session.",
+    ["Aucune restauration confirmée : le jeu a peut-être refusé l'équipement."] = "No restore confirmed: WoW may have rejected the equipment change.",
+    ["Auto : "] = "Auto: ",
+    ["Auto : %s"] = "Auto: %s",
+    ["AutoArmor ne choisit pas tes récompenses de quête à ta place.\nIl vérifie les pièces obtenues et équipe les améliorations hors combat.\nTes emplacements protégés restent inchangés."] = "AutoArmor never selects quest rewards for you.\nIt checks received items and equips upgrades out of combat.\nProtected slots are never replaced.",
+    ["AutoArmor • Conseil de quête"] = "AutoArmor • Quest Reward Advice",
+    ["Automatique (selon mon personnage)"] = "Automatic (based on my character)",
+    ["Autoriser"] = "Allow",
+    ["Autoriser les armes après quête ou montée de niveau"] = "Auto-equip weapon upgrades after quests or level-ups",
+    ["Bijou 1"] = "Trinket 1",
+    ["Bijou 2"] = "Trinket 2",
+    ["Bouton"] = "Button",
+    ["Cape"] = "Back",
+    ["Certains objets ne sont pas encore chargés : nouvel essai en cours."] = "Some items are still loading: retrying...",
+    ["Cette ancienne pièce ne peut pas être équipée ici."] = "This previous item cannot be equipped in this slot.",
+    ["Cette ligne ne contient aucune ancienne pièce à restaurer."] = "No previous item was recorded in this history entry.",
+    ["Cette main gauche est incompatible avec ton arme actuelle."] = "This off-hand item is incompatible with your current weapon.",
+    ["Cette pièce est déjà équipée."] = "This item is already equipped.",
+    ["Choisir le niveau d'objet le plus élevé"] = "Prefer higher item level",
+    ["Choisir le type d'armure adapté à ma classe"] = "Prefer the best armor type for my class",
+    ["Choisir les objets à ne jamais remplacer"] = "Choose Items That Must Never Be Replaced",
+    ["Choisir..."] = "Select...",
+    ["Choix manuel conservé pour les automatismes"] = "Manual gear choice is respected by auto-equip",
+    ["Choix n°%d : %s\nGain estimé (%s) : +%s."] = "Choice #%d: %s\nEstimated gain (%s): +%s.",
+    ["Clic droit : ouvrir les options."] = "Right-click: open settings.",
+    ["Clic gauche : optimiser maintenant."] = "Left-click: optimize now.",
+    ["Clique d'abord sur Vérifier mes sacs."] = "Click Scan Bags first.",
+    ["Clique sur Actualiser pour analyser tes sacs"] = "Click Refresh Analysis to scan your bags",
+    ["Clique sur Vérifier mes sacs"] = "Click Scan Bags",
+    ["Combat (DPS)"] = "Combat (DPS)",
+    ["Combat en cours : analyse / équipement indisponible."] = "In combat: scanning and equipping are unavailable.",
+    ["Combat en cours : aucune modification."] = "In combat: no changes made.",
+    ["Comment choisir mes équipements"] = "Gear Optimization Rules",
+    ["Compare les objets de tes sacs et choisis ceux que tu veux porter."] = "Compare items in your bags and choose which upgrades to equip.",
+    ["Comparer aussi les armes, boucliers et armes à distance"] = "Include weapons, shields and ranged weapons",
+    ["Conseiller une récompense avant de rendre une quête"] = "Recommend a quest reward before turn-in",
+    ["Cou"] = "Neck",
+    ["Destruction (DPS)"] = "Destruction (DPS)",
+    ["Diagnostic"] = "Diagnostics",
+    ["Discipline (Soins)"] = "Discipline (Healer)",
+    ["Distance"] = "Ranged",
+    ["Données de la pièce portée en chargement"] = "Equipped item data is still loading",
+    ["Démonologie (DPS)"] = "Demonology (DPS)",
+    ["Déplace la notification, puis clic droit dessus pour terminer."] = "Move the notification, then right-click it to finish.",
+    ["Déplacer"] = "Move",
+    ["EMPLACEMENT"] = "SLOT",
+    ["Emplacement %d"] = "Slot %d",
+    ["Emplacement de la notification conservé."] = "Notification position saved.",
+    ["Emplacement protégé / déprotégé. Réanalyse si besoin."] = "Slot protection updated. Scan again if needed.",
+    ["Emplacement verrouillé"] = "Slot is locked",
+    ["Emplacement verrouillé : déverrouille-le avant de restaurer."] = "Slot is locked: unlock it before restoring.",
+    ["English"] = "English",
+    ["Farouche (DPS)"] = "Feral (DPS)",
+    ["Farouche (Tank)"] = "Guardian (Tank)",
+    ["Feu (DPS)"] = "Fire (DPS)",
+    ["Finesse (DPS)"] = "Subtlety (DPS)",
+    ["Français"] = "Français",
+    ["Fureur (DPS)"] = "Fury (DPS)",
+    ["Givre (DPS)"] = "Frost (DPS)",
+    ["Glisse la notification avec la souris, puis clic droit dessus pour terminer.\nTa position est conservée, meme apres une reconnexion."] = "Drag the notification, then right-click it to finish.\nYour position is saved between sessions.",
+    ["Glisse-moi où tu veux. Clic droit pour terminer."] = "Drag me anywhere. Right-click when done.",
+    ["Général (sans spécialisation)"] = "General (no specialization)",
+    ["Historique"] = "History",
+    ["Impossible d'équiper pendant le combat."] = "Cannot equip items during combat.",
+    ["Impossible de restaurer un objet pendant le combat."] = "Cannot restore items during combat.",
+    ["Impossible pendant le combat ou si l'emplacement est verrouillé."] = "Unavailable in combat or when the slot is locked.",
+    ["Jambes"] = "Legs",
+    ["L'ancienne pièce doit encore être dans les sacs."] = "The previous item must still be in your bags.",
+    ["Langue"] = "Language",
+    ["Langue de l'interface :"] = "Interface language:",
+    ["Langue mise à jour."] = "Language updated.",
+    ["Le diagnostic compare les pièces de tes sacs aux réglages actuels. Il ne change aucun objet."] = "Diagnostics compares items in your bags with your current settings. No gear is changed.",
+    ["Le type d'armure disponible évolue avec ton niveau.\nTu peux protéger chaque emplacement dans l'onglet Équipement."] = "Available armor types change as you level.\nLock individual slots on the Equipment tab.",
+    ["Lierait l'objet en l'équipant"] = "Would bind the item on equip",
+    ["Main droite"] = "Main Hand",
+    ["Main gauche"] = "Off Hand",
+    ["Mains"] = "Hands",
+    ["Maîtrise des bêtes (DPS)"] = "Beast Mastery (DPS)",
+    ["Mes derniers changements d'équipement"] = "Recent Equipment Changes",
+    ["Mes protections"] = "Equipment Protection",
+    ["Mon profil :"] = "My profile:",
+    ["Mon équipement"] = "My Gear",
+    ["Même anneau ou bijou déjà porté dans l'autre emplacement"] = "Same ring or trinket already equipped in the other slot",
+    ["Ne pas remplacer automatiquement une pièce changée par moi"] = "Do not auto-replace items I equipped manually",
+    ["Ne pas rendre mes objets liés en les équipant"] = "Do not bind unbound items when equipping",
+    ["Ne remplace pas les pièces protégées."] = "Protected items will not be replaced.",
+    ["Niveau"] = "Level",
+    ["Niveau %d requis"] = "Requires level %d",
+    ["Niveau insuffisant pour restaurer cette pièce."] = "Your level is too low to restore this item.",
+    ["Non retenu"] = "Not selected",
+    ["Notification replacée en haut de l'écran."] = "Notification moved back to the top of the screen.",
+    ["OK"] = "SELECT",
+    ["Objet"] = "Item",
+    ["Objet %d"] = "Item %d",
+    ["Objet identique déjà porté dans l'autre emplacement."] = "An identical item is already equipped in the other slot.",
+    ["Objet incompatible avec cet emplacement"] = "Item cannot be equipped in this slot",
+    ["Objet non équipable par ton personnage"] = "Your character cannot equip this item",
+    ["Objet protégé"] = "Item is protected",
+    ["Objet protégé : autorise-le dans les options pour le restaurer."] = "Item is protected: allow it in settings to restore it.",
+    ["Objet trouvé différent de la pièce enregistrée."] = "Found item does not match the saved item.",
+    ["Objet(s)"] = "Item(s)",
+    ["Objets non retenus : "] = "Ignored items: ",
+    ["Objets non retenus : %d%s"] = "Ignored items: %d%s",
+    ["Objets protégés"] = "Protected Items",
+    ["Ombre (DPS)"] = "Shadow (DPS)",
+    ["Optimisation"] = "Optimization",
+    ["Optimisation automatique"] = "Automatic Optimization",
+    ["Optimisation en attente de la fin du combat."] = "Optimization will resume after combat.",
+    ["Optimiser"] = "Optimize",
+    ["Paramètre enregistré."] = "Setting saved.",
+    ["Paramètres"] = "Settings",
+    ["Pieds"] = "Feet",
+    ["Pièce portée protégée"] = "Equipped item is protected",
+    ["Poignets"] = "Wrists",
+    ["Porté"] = "Equipped",
+    ["Position de la notification"] = "Notification Position",
+    ["Position de la notification enregistrée."] = "Notification position saved.",
+    ["Position par défaut"] = "Reset Position",
+    ["Pour protéger une pièce précise, ouvre l'onglet Objets protégés.\nLa restauration de la dernière optimisation se trouve dans Équipement."] = "Protect individual items on the Protected Items tab.\nUndo the last optimization from the Equipment tab.",
+    ["Pourquoi certains équipements sont-ils ignorés ?"] = "Why Are Some Items Ignored?",
+    ["Protection (Tank)"] = "Protection (Tank)",
+    ["Protection d'objet mise à jour."] = "Item protection updated.",
+    ["Protège les pièces que tu portes ou conserves dans tes sacs.\nUne protection concerne toutes les copies du même objet."] = "Protect items you wear or keep in your bags.\nProtection applies to every copy of the same item.",
+    ["Protéger"] = "Protect",
+    ["Protégé"] = "Protected",
+    ["Précision (DPS)"] = "Marksmanship (DPS)",
+    ["Précédent"] = "Previous",
+    ["Prêt : optimise en 1 clic ou après une quête / un niveau."] = "Ready: optimize in one click or after a quest or level-up.",
+    ["Quand je gagne un niveau"] = "When I level up",
+    ["Quête"] = "Quest",
+    ["Respect de mes changements manuels"] = "Respect Manual Equipment Changes",
+    ["Restauration"] = "Restore",
+    ["Restauration (Soins)"] = "Restoration (Healer)",
+    ["Restauration demandée : vérification de l'équipement..."] = "Restore requested: verifying equipment...",
+    ["Restauration demandée : vérification en cours..."] = "Restore requested: verifying...",
+    ["Restauration impossible : anciennes pièces introuvables ou refusees."] = "Cannot restore: previous items were missing or rejected.",
+    ["Restauration indisponible en combat."] = "Cannot undo during combat.",
+    ["Restaurer"] = "Restore",
+    ["Restaurer remet seulement l'ancienne pièce de cette ligne, si elle est encore dans tes sacs."] = "Restore only the previous item from this entry, if it is still in your bags.",
+    ["Restaurer uniquement cette pièce"] = "Restore This Item Only",
+    ["Retire d'abord ta main gauche pour équiper cette arme à deux mains."] = "Unequip your off-hand item before equipping this two-handed weapon.",
+    ["Réautoriser tous les emplacements"] = "Resume Auto-Equip on All Slots",
+    ["Sac"] = "Bag",
+    ["Sacré (Soins)"] = "Holy (Healer)",
+    ["Sans rôle défini, AutoArmor compare simplement les niveaux d'objet.\nTu peux aussi sélectionner un profil toi-même."] = "If no role is detected, AutoArmor compares item levels only.\nYou can also choose a profile manually.",
+    ["Suivant"] = "Next",
+    ["Survie (DPS)"] = "Survival (DPS)",
+    ["Taille"] = "Waist",
+    ["Tenir compte des statistiques de mon rôle"] = "Consider stats for my role",
+    ["Terminer"] = "Done",
+    ["Torse"] = "Chest",
+    ["Tous les emplacements peuvent de nouveau etre optimises automatiquement."] = "All slots can be optimized automatically again.",
+    ["Type d'arme différent : restaure cette configuration manuellement."] = "Weapon type differs: restore this setup manually.",
+    ["Type d'armure non accessible à ta classe"] = "Armor type is not available to your class",
+    ["Type d'armure non prioritaire pour ta classe"] = "Armor type is not preferred for your class",
+    ["Tête"] = "Head",
+    ["Une autre pièce du sac est mieux classée"] = "Another bag item ranks higher",
+    ["Une opération est déjà en cours."] = "An operation is already in progress.",
+    ["VERROU"] = "LOCK",
+    ["Vide"] = "Empty",
+    ["Vindicte (DPS)"] = "Retribution (DPS)",
+    ["Vérifier mes sacs"] = "Scan Bags",
+    ["WoW a refusé la restauration de cette pièce."] = "WoW rejected this item restore.",
+    ["[Protégé]"] = "[Protected]",
+    ["ÉQUIPÉ"] = "EQUIPPED",
+    ["Élémentaire (DPS)"] = "Elemental (DPS)",
+    ["Épaules"] = "Shoulders",
+    ["Équilibre (DPS)"] = "Balance (DPS)",
+    ["Équipe les meilleures pièces de tes sacs selon ta classe et ton rôle."] = "Equips the best items from your bags for your class and role.",
+    ["Équipement"] = "Equipment",
+    ["Équipement demandé : vérification en cours…"] = "Equipment change requested: verifying...",
+    ["Équiper la sélection"] = "Equip Selected",
+}
+
+function AA:GetLanguage()
+    return self.db and self.db.language == "fr" and "fr" or "en"
+end
+
+function AA:Tr(key)
+    if type(key) ~= "string" or self:GetLanguage() == "fr" then return key end
+    -- Diagnostic reasons are stored as French source text so an open page
+    -- can be retranslated immediately after a language change.
+    local requiredLevel = key:match("^Niveau (%d+) requis$")
+    if requiredLevel then return string.format(en["Niveau %d requis"], tonumber(requiredLevel)) end
+    return en[key] or key
+end
+
+function AA:TF(key, ...)
+    return string.format(self:Tr(key), ...)
+end
+
+function AA:LocalizeWidget(widget, source)
+    if not widget or not source or source == "" then return end
+    self._i18nWidgets = self._i18nWidgets or {}
+    self._i18nWidgets[#self._i18nWidgets + 1] = {widget=widget, source=source}
+    widget:SetText(self:Tr(source))
+end
+
+function AA:RefreshLanguage()
+    for _, entry in ipairs(self._i18nWidgets or {}) do
+        if entry.widget and entry.widget.SetText then
+            entry.widget:SetText(self:Tr(entry.source))
+        end
+    end
+    if self.RefreshUI then self:RefreshUI() end
+    if self.toast and self.toastPositioning then
+        self.toast.message:SetText(self:Tr("Glisse-moi où tu veux. Clic droit pour terminer."))
+    elseif self.toast and self.toastRaw then
+        self.toast.message:SetText(self:Tr(self.toastRaw))
+    end
+    if self.questPanel and self.questPanel:IsShown() and self.ShowQuestRecommendation then
+        self:ShowQuestRecommendation()
+    end
+end
+
+function AA:SetLanguage(language)
+    if language ~= "en" and language ~= "fr" then return end
+    if not self.db or self.db.language == language then return end
+    self.db.language = language
+    self.statusRaw = "Langue mise à jour."
+    self.status = self:Tr(self.statusRaw)
+    self:RefreshLanguage()
+end

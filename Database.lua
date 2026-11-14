@@ -1,5 +1,6 @@
 local addonName, AA = ...
 local defaults = {
+    language = "en", -- The add-on defaults to English even on a French WoW client.
     quickMode = true,
     skipUnboundBoE = true,
     scoringMode = "ilvl", -- « role » : approximation statistique.
@@ -23,7 +24,7 @@ local defaults = {
 function AA:LoadDatabase()
     if type(AutoArmorDB) ~= "table" then AutoArmorDB = {} end
     if type(AutoArmorDB.characters) ~= "table" then AutoArmorDB.characters = {} end
-    local charName = UnitName("player") or "Personnage"
+    local charName = UnitName("player") or "Character"
     local realmName = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or "Forever"
     local charKey = charName .. "-" .. realmName
     if type(AutoArmorDB.characters[charKey]) ~= "table" then
@@ -52,6 +53,7 @@ function AA:LoadDatabase()
     if type(self.db.toastX) ~= "number" or type(self.db.toastY) ~= "number" then
         self.db.toastX, self.db.toastY = nil, nil
     end
+    if self.db.language ~= "en" and self.db.language ~= "fr" then self.db.language = "en" end
     if self.db.profile ~= "auto" and type(self.db.profile) ~= "string" then self.db.profile = "auto" end
     if self.db.scoringMode ~= "ilvl" and self.db.scoringMode ~= "role" then self.db.scoringMode = "ilvl" end
     -- Migration v0.5.1 : activer une fois les nouvelles optimisations d'armes
@@ -67,6 +69,7 @@ function AA:LoadDatabase()
     -- Les deux nouveaux réglages sont activés par défaut, même pour les
     -- personnages ayant déjà une sauvegarde de la v0.4.3.
     -- Aucune autre automatisation historique n'est restaurée.
+    self.status = self:Tr(self.statusRaw or "Prêt : optimise en 1 clic ou après une quête / un niveau.")
     AutoArmorDB.enabled = nil
 end
 

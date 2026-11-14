@@ -1,14 +1,15 @@
 ## Interface: 16001
-## Title: AutoArmor |cff7dd7ffv0.7.3-beta.6|r
-## Notes: Optimise les armures, armes et bijoux de tes sacs selon ta classe et ton rôle, en un clic ou après quête/niveau. Protections, diagnostic et historique.
+## Title: AutoArmor |cff7dd7ffv0.7.4-beta.1|r
+## Notes: Smart gear upgrades for your class and role. One-click or automatic optimization, equipment protection, diagnostics and history.
 ## IconTexture: Interface\AddOns\AutoArmor\Textures\AutoArmorListIcon
-## Author: Projet personnel AutoArmor
-## Version: 0.7.3-beta.6
+## Author: AutoArmor Project
+## Version: 0.7.4-beta.1
 ## X-Curse-Project-ID: 1800518
 ## OptionalDeps: Bagnon
 ## SavedVariables: AutoArmorDB
 
 Core.lua
+Locale.lua
 Database.lua
 Profiles.lua
 Scanner.lua
