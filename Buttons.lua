@@ -72,55 +72,60 @@ end
 -- Bagnon peut créer sa fenêtre d'inventaire seulement au premier affichage.
 -- Ne cibler que l'inventaire : jamais la banque ni les autres fenêtres Bagnon.
 local function GetBagnonInventory()
-    local direct = _G.BagnonFrameinventory or _G.BagnonFrameInventory
-    if direct then return direct end
     local bagnon = _G.Bagnon
-    if bagnon and type(bagnon.frames) == "table" then
-        return bagnon.frames.inventory
+    -- BagBrother conserve ses fenêtres dans le registre de Bagnon.Frames.
+    -- Get('inventory') renvoie un vrai Frame après sa création, ou une
+    -- définition de fenêtre avant celle-ci (à ne pas utiliser comme parent).
+    if bagnon and bagnon.Frames and type(bagnon.Frames.Get) == "function" then
+        local frame = bagnon.Frames:Get("inventory")
+        if frame and type(frame.GetFrameLevel) == "function" then
+            return frame
+        end
+    end
+
+    -- Compatibilité avec les anciennes variantes de Bagnon.
+    local frame = _G.BagnonFrameinventory or _G.BagnonFrameInventory
+    if frame and type(frame.GetFrameLevel) == "function" then
+        return frame
     end
     return nil
 end
 
 local function AttachBagnon()
     local frame = GetBagnonInventory()
-    if not frame or type(frame.GetFrameLevel) ~= "function" then return end
+    if not frame then return end
     CreateEmbeddedButton(frame, "bagnon")
 end
 
 local function InstallBagnonHooks()
     if not hooksecurefunc then return end
     local bagnon = _G.Bagnon
-    if not bagnon then return end
+    if not bagnon or not bagnon.Frames then return end
 
-    -- Le crochet capte la création tardive de la fenêtre (versions Bagnon
-    -- où le cadre n'existe pas encore lors de PLAYER_LOGIN).
-    local frameClass = bagnon.Frame
-    if frameClass and type(frameClass.New) == "function"
-        and not frameClass.AutoArmorCreationHook then
-        frameClass.AutoArmorCreationHook = true
-        hooksecurefunc(frameClass, "New", function()
-            if C_Timer and C_Timer.After then
-                C_Timer.After(0, AttachBagnon)
-            else
+    local frames = bagnon.Frames
+
+    -- L'API officielle BagBrother ouvre l'inventaire via Frames:Show.
+    -- Brancher le crochet une seule fois, même si l'addon est chargé tard.
+    if type(frames.Show) == "function" and not frames.AutoArmorShowHook then
+        frames.AutoArmorShowHook = true
+        hooksecurefunc(frames, "Show", function(_, id)
+            if id == "inventory" then
                 AttachBagnon()
             end
         end)
     end
 
-    local frames = bagnon.Frames
-    if frames and type(frames.Show) == "function"
-        and not frames.AutoArmorShowHook then
-        frames.AutoArmorShowHook = true
-        hooksecurefunc(frames, "Show", function(_, id)
-            if id == "inventory" or id == nil then
-                if C_Timer and C_Timer.After then
-                    C_Timer.After(0, AttachBagnon)
-                else
-                    AttachBagnon()
-                end
+    -- D'autres appels créent la fenêtre via Frames:New avant Show.
+    if type(frames.New) == "function" and not frames.AutoArmorNewHook then
+        frames.AutoArmorNewHook = true
+        hooksecurefunc(frames, "New", function(_, id)
+            if id == "inventory" then
+                AttachBagnon()
             end
         end)
     end
+
+    AttachBagnon()
 end
 
 local function AttachCharacter()
