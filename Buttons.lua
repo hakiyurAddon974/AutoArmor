@@ -14,49 +14,82 @@ local function CreateEmbeddedButton(frame, kind)
     if not frame then return nil end
     if frame.AutoArmorActionButton then return frame.AutoArmorActionButton end
 
-    local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    -- Interface compacte sans texture de fond externe : le bouton reste
+    -- visible même si le client ne charge pas encore notre icône.
+    local button = CreateFrame("Button", nil, frame)
     frame.AutoArmorActionButton = button
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    -- Même gabarit que les boutons visibles des sacs séparés : leur
-    -- emplacement extérieur au cadre est plus fiable que la barre de titre.
-    -- Version compacte : icône AutoArmor + AA ; les ancrages restent inchangés.
-    button:SetSize(68, 22)
-    button:SetText("AA")
+    button:SetSize(60, 23)
+    button:SetFrameStrata(frame:GetFrameStrata() or "MEDIUM")
     button:SetFrameLevel(frame:GetFrameLevel() + 15)
+
+    local bg = button:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(button)
+    bg:SetColorTexture(.095, .083, .072, .96)
+
+    local borders = {}
+    local function Border(point1, relative1, point2, relative2, width, height)
+        local t = button:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(.55, .42, .23, .95)
+        t:SetPoint(point1, button, relative1)
+        t:SetPoint(point2, button, relative2)
+        if width then t:SetWidth(width) end
+        if height then t:SetHeight(height) end
+        borders[#borders+1] = t
+        return t
+    end
+    Border("TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT", nil, 1)
+    Border("BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", nil, 1)
+    Border("TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT", 1, nil)
+    Border("TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT", 1, nil)
+
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(19, 19)
-    icon:SetPoint("LEFT", button, "LEFT", 7, 0)
-    icon:SetTexture("Interface\\AddOns\\AutoArmor\\Textures\\AutoArmorButton")
+    icon:SetSize(22, 22)
+    icon:SetPoint("LEFT", button, "LEFT", 2, 0)
+    icon:SetTexture("Interface/AddOns/AutoArmor/Textures/AutoArmorIcon")
+    icon:SetTexCoord(0, 1, 0, 1)
     button.AutoArmorIcon = icon
-    local caption = button:GetFontString()
-    if caption then
-        caption:ClearAllPoints()
-        caption:SetPoint("LEFT", button, "LEFT", 34, 0)
-        caption:SetJustifyH("LEFT")
+
+    local caption = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    caption:SetPoint("CENTER", button, "CENTER", 11, 0)
+    caption:SetText("AA")
+    caption:SetTextColor(.95, .82, .53, 1)
+
+    local function SetHover(hovered)
+        if hovered then
+            bg:SetColorTexture(.18, .155, .105, .98)
+            caption:SetTextColor(1, .94, .72, 1)
+            for _, edge in ipairs(borders) do edge:SetColorTexture(.85, .67, .33, 1) end
+        else
+            bg:SetColorTexture(.095, .083, .072, .96)
+            caption:SetTextColor(.95, .82, .53, 1)
+            for _, edge in ipairs(borders) do edge:SetColorTexture(.55, .42, .23, .95) end
+        end
     end
 
     if kind == "bagnon" then
         -- Bagnon possède sa propre fenêtre de sacs, distincte des cadres Blizzard.
         -- Le bouton reste sous sa bordure et suit ses déplacements.
-        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 3)
+        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 10, 2)
     elseif kind == "character" then
         -- Ancrage à CharacterFrame, PAS à PaperDollFrame : la sous-fenêtre
         -- PaperDoll peut changer de dimensions selon les versions de WoW.
         -- Petit onglet sous la bordure, sans recouvrir l'armure ni les stats.
-        button:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", -24, 3)
+        button:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", -18, 2)
     elseif kind == "combined" then
         -- Dans Forever, la barre de titre du sac combiné peut masquer les
         -- boutons enfants. On reprend donc l'ancrage EXTERIEUR qui marche
         -- déjà pour les sacs séparés (à gauche, juste sous la bordure).
         -- Ce placement ne dépend ni de la recherche ni des rangées d'objets.
-        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 3)
+        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 10, 2)
     else
         -- Sacs séparés : petit onglet sous le cadre, hors de la grille.
-        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 3)
+        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 10, 2)
     end
 
     button:SetScript("OnClick", OnButtonClick)
     button:SetScript("OnEnter", function(self)
+        SetHover(true)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText("AutoArmor v" .. AA.version, .5, .86, 1)
         GameTooltip:AddLine("Équipe les meilleures pièces de tes sacs selon ta classe et ton rôle.", 1, 1, 1, true)
@@ -65,7 +98,10 @@ local function CreateEmbeddedButton(frame, kind)
         GameTooltip:AddLine("Ne remplace pas les pièces protégées.", .85, .85, .85)
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function()
+        SetHover(false)
+        GameTooltip:Hide()
+    end)
     return button
 end
 
