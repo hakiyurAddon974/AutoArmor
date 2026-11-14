@@ -35,7 +35,11 @@ local function CreateEmbeddedButton(frame, kind)
         caption:SetJustifyH("LEFT")
     end
 
-    if kind == "character" then
+    if kind == "bagnon" then
+        -- Bagnon possède sa propre fenêtre de sacs, distincte des cadres Blizzard.
+        -- Le bouton reste sous sa bordure et suit ses déplacements.
+        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 3)
+    elseif kind == "character" then
         -- Ancrage à CharacterFrame, PAS à PaperDollFrame : la sous-fenêtre
         -- PaperDoll peut changer de dimensions selon les versions de WoW.
         -- Petit onglet sous la bordure, sans recouvrir l'armure ni les stats.
@@ -63,6 +67,60 @@ local function CreateEmbeddedButton(frame, kind)
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return button
+end
+
+-- Bagnon peut créer sa fenêtre d'inventaire seulement au premier affichage.
+-- Ne cibler que l'inventaire : jamais la banque ni les autres fenêtres Bagnon.
+local function GetBagnonInventory()
+    local direct = _G.BagnonFrameinventory or _G.BagnonFrameInventory
+    if direct then return direct end
+    local bagnon = _G.Bagnon
+    if bagnon and type(bagnon.frames) == "table" then
+        return bagnon.frames.inventory
+    end
+    return nil
+end
+
+local function AttachBagnon()
+    local frame = GetBagnonInventory()
+    if not frame or type(frame.GetFrameLevel) ~= "function" then return end
+    CreateEmbeddedButton(frame, "bagnon")
+end
+
+local function InstallBagnonHooks()
+    if not hooksecurefunc then return end
+    local bagnon = _G.Bagnon
+    if not bagnon then return end
+
+    -- Le crochet capte la création tardive de la fenêtre (versions Bagnon
+    -- où le cadre n'existe pas encore lors de PLAYER_LOGIN).
+    local frameClass = bagnon.Frame
+    if frameClass and type(frameClass.New) == "function"
+        and not frameClass.AutoArmorCreationHook then
+        frameClass.AutoArmorCreationHook = true
+        hooksecurefunc(frameClass, "New", function()
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, AttachBagnon)
+            else
+                AttachBagnon()
+            end
+        end)
+    end
+
+    local frames = bagnon.Frames
+    if frames and type(frames.Show) == "function"
+        and not frames.AutoArmorShowHook then
+        frames.AutoArmorShowHook = true
+        hooksecurefunc(frames, "Show", function(_, id)
+            if id == "inventory" or id == nil then
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, AttachBagnon)
+                else
+                    AttachBagnon()
+                end
+            end
+        end)
+    end
 end
 
 local function AttachCharacter()
@@ -96,6 +154,7 @@ end
 
 function AA:AttachEmbeddedButtons()
     AttachCharacter()
+    AttachBagnon()
     if _G.ContainerFrameCombinedBags then
         CreateEmbeddedButton(_G.ContainerFrameCombinedBags, "combined")
     end
@@ -106,6 +165,7 @@ function AA:AttachEmbeddedButtons()
 end
 
 function AA:InstallEmbeddedButtons()
+    InstallBagnonHooks()
     self:AttachEmbeddedButtons()
 
     -- Un cadre natif peut être chargé à la demande, bien après la connexion.
@@ -113,6 +173,7 @@ function AA:InstallEmbeddedButtons()
     watcher:RegisterEvent("ADDON_LOADED")
     watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
     watcher:SetScript("OnEvent", function()
+        InstallBagnonHooks()
         AA:AttachEmbeddedButtons()
     end)
 
@@ -154,6 +215,7 @@ function AA:InstallEmbeddedButtons()
         local count = 0
         local ticker
         ticker = C_Timer.NewTicker(2, function()
+            InstallBagnonHooks()
             AA:AttachEmbeddedButtons()
             count = count + 1
             if count >= 15 and ticker then ticker:Cancel() end
