@@ -51,6 +51,10 @@ function AA:ExplainIgnoredItem(item, slot)
         return "Même anneau ou bijou déjà porté dans l'autre emplacement"
     end
     local worn = self:ReadWorn(slot)
+    if worn.link and self.db.protectSpecialEffects
+        and self:HasUnmodelledEffect(worn.link) then
+        return "Effet spécial non chiffrable sur la pièce portée"
+    end
     if worn.link and not worn.level then return "Données de la pièce portée en chargement" end
     local offer = self:EvaluateItemForSlot(item, slot, worn)
     if offer then return "Une autre pièce du sac est mieux classée" end

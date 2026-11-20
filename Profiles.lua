@@ -34,7 +34,7 @@ local modStats = {
     HASTE={"ITEM_MOD_HASTE_RATING_SHORT", "ITEM_MOD_SPELL_HASTE_RATING_SHORT"},
     DEF={"ITEM_MOD_DEFENSE_SKILL_RATING_SHORT"},
     DODGE={"ITEM_MOD_DODGE_RATING_SHORT"}, PARRY={"ITEM_MOD_PARRY_RATING_SHORT"},
-    ARMOR={"RESISTANCE0_NAME", "ITEM_MOD_BONUS_ARMOR"},
+    ARMOR={"ITEM_MOD_ARMOR_SHORT", "ITEM_MOD_BONUS_ARMOR"},
 }
 
 local classicSpecIDs = {
@@ -50,19 +50,40 @@ function AA:GetClass()
     return token
 end
 
-function AA:GetDetectedProfileID()
-    -- À très bas niveau, ne pas supposer un rôle même si une API renvoie une valeur.
+-- Forever peut exposer C_SpecializationInfo sans les specIDs Retail.
+-- Ne jamais interpréter le profil de classe générique comme une spécialisation.
+local foreverClassIDs = { [1491]=true, [1486]=true }
+function AA:GetDetectedRole()
     if (UnitLevel("player") or 1) < 10 then return nil end
-    -- Selon la version Forever, les spécialisations modernes peuvent être absentes.
-    if type(GetSpecialization) == "function" and type(GetSpecializationInfo) == "function" then
-        local index = GetSpecialization()
-        if type(index) == "number" and index > 0 then
-            local id = GetSpecializationInfo(index)
-            local profileID = classicSpecIDs[id]
-            if profileID then return profileID end
+    local api = C_SpecializationInfo
+    if api and type(api.GetSpecialization) == "function"
+        and type(api.GetSpecializationInfo) == "function" then
+        local ok, index = pcall(api.GetSpecialization)
+        if ok and type(index) == "number" and index > 0 then
+            local good, id, name, description, icon, role = pcall(api.GetSpecializationInfo, index)
+            if good then
+                -- Les identifiants génériques de classe ne prouvent pas une spé.
+                if classicSpecIDs[id] then return role, classicSpecIDs[id] end
+                if (role == "TANK" or role == "HEALER") and not foreverClassIDs[id]
+                    and name and name ~= "" then return role end
+            end
         end
     end
     return nil
+end
+
+function AA:GetDetectedProfileID()
+    if (UnitLevel("player") or 1) < 10 then return nil end
+    -- Un profil n'est reconnu que si l'API donne une vraie spécialisation.
+    if type(GetSpecialization) == "function" and type(GetSpecializationInfo) == "function" then
+        local ok, index = pcall(GetSpecialization)
+        if ok and type(index) == "number" and index > 0 then
+            local success, id = pcall(GetSpecializationInfo, index)
+            if success and classicSpecIDs[id] then return classicSpecIDs[id] end
+        end
+    end
+    local _, id = self:GetDetectedRole()
+    return id
 end
 
 function AA:GetProfile()
@@ -74,8 +95,19 @@ function AA:GetProfile()
             if profile.id == id then return profile end
         end
     end
-    -- Important pour les bas niveaux : absence de rôle/spé ≠ erreur.
-    -- En mode automatique sans spé reconnue, on reste neutre (ilvl).
+    -- Un rôle crédible mais sans spécialisation explicite peut donner
+    -- une pondération conservatrice sans inventer une spé.
+    if self.db and self.db.profile == "auto" then
+        local role = self:GetDetectedRole()
+        if role == "TANK" or role == "HEALER" then
+            for _, profile in ipairs(list) do
+                if profile.role == role then
+                    return P("role-" .. role, role == "TANK" and "Profil tank (détecté)"
+                        or "Profil soigneur (détecté)", role, profile.weights)
+                end
+            end
+        end
+    end
     return P("general", "Général (sans spécialisation)", "NONE", nil)
 end
 
@@ -105,6 +137,55 @@ function AA:ScoreItem(itemLink, ilvl, armorSubClass, forceProfile)
     return result
 end
 
+-- Tooltip data may expose a literal, numeric weapon DPS. Never derive DPS from
+-- item level. The value is only used if that information is reliably present.
+function AA:GetWeaponDPS(link)
+    if not link then return nil end
+    if C_Item and type(C_Item.GetItemStats) == "function" then
+        local ok, stats = pcall(C_Item.GetItemStats, link)
+        if ok and type(stats) == "table" then
+            local dps = stats.ITEM_MOD_DAMAGE_PER_SECOND_SHORT or stats.ITEM_MOD_WEAPON_DPS_SHORT
+            if type(dps) == "number" and dps > 0 then return dps end
+        end
+    end
+    if C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" then
+        local ok, tip = pcall(C_TooltipInfo.GetHyperlink, link)
+        if ok and type(tip) == "table" and type(tip.lines) == "table" then
+            for _, line in ipairs(tip.lines) do
+                local t = type(line) == "table" and (line.leftText or line.text)
+                if type(t) == "string" then
+                    local value = t:match("([%d%.,]+) damage per second")
+                        or t:match("([%d%.,]+) dégâts par seconde")
+                        or t:match("([%d%.,]+) points de dégâts par seconde")
+                    if value then
+                        local normalized = (value:gsub(",", "."))
+                        local num = tonumber(normalized)
+                        if num and num > 0 then return num end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function AA:ExplainUpgrade(offer)
+    if not offer then return nil end
+    local profile = self:GetProfile()
+    local levelGain = (offer.level or 0) - (offer.currentLevel or 0)
+    local sentence = self:TF("Différence de niveau d'objet : %+d.", levelGain)
+    if self:IsWeaponSlot(offer.slot) then
+        local newDPS = self:GetWeaponDPS(offer.link)
+        if newDPS then sentence = sentence .. " " .. self:TF("DPS d'arme lisible : %.1f.", newDPS) end
+        if self.db.smartWeapons and profile.weights then
+            sentence = sentence .. " " .. self:Tr("Statistiques pondérées selon le profil ; résultat indicatif.")
+        end
+    elseif self.db.scoringMode == "role" and profile.weights then
+        sentence = sentence .. " " .. self:Tr("Statistiques pondérées selon le profil ; résultat indicatif.")
+    end
+    return sentence
+end
+
 -- Score intelligent spécifique aux armes. Il reste neutre si le rôle
 -- est inconnu, notamment au début du leveling.
 -- Le score est heuristique : il ne simule ni procs ni vrais DPS en combat.
@@ -120,20 +201,11 @@ function AA:ScoreWeapon(link, ilvl, slot)
     -- Favorise les attributs de la spécialisation même si le joueur a choisi
     -- le mode « ilvl » pour les armures, sans jamais changer de famille d'armes.
     local score = self:ScoreItem(link, ilvl, nil, true)
-    -- Certaines versions exposent les DPS de l'arme dans les stats, d'autres
-    -- non. Pas de scraping du tooltip localisé et pas de DPS inventés.
-    local stats
-    if (slot == 16 or slot == 17 or slot == 18) and
-        C_Item and type(C_Item.GetItemStats) == "function" then
-        local ok, value = pcall(C_Item.GetItemStats, link)
-        if ok and type(value) == "table" then stats = value end
-    end
-    if stats and profile.role == "DAMAGER" then
-        local dps = stats.ITEM_MOD_DAMAGE_PER_SECOND_SHORT
-            or stats.ITEM_MOD_WEAPON_DPS_SHORT
-        if type(dps) == "number" and dps > 0 then
-            score = score + dps * 1.5
-        end
+    local dps = self:GetWeaponDPS(link)
+    if dps and profile.role == "DAMAGER" then
+        local melee = slot ~= 18 and profile.weights ~= W.caster
+            and profile.weights ~= W.healer
+        score = score + dps * (melee and 1.8 or .75)
     end
     return score
 end

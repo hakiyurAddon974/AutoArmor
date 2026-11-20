@@ -1,5 +1,106 @@
 local addonName, AA = ...
 
+local THEME = {
+    bg = {.09, .08, .07, .96},
+    panel = {.12, .10, .08, .92},
+    panelSoft = {.16, .12, .08, .38},
+    edge = {.55, .42, .23, .95},
+    edgeHi = {.85, .67, .33, 1},
+    text = {.95, .82, .53, 1},
+    textHi = {1, .94, .72, 1},
+}
+
+local function AddBorderTexture(parent, point1, relative1, point2, relative2, width, height)
+    local t = parent:CreateTexture(nil, "BORDER")
+    t:SetColorTexture(unpack(THEME.edge))
+    t:SetPoint(point1, parent, relative1)
+    t:SetPoint(point2, parent, relative2)
+    if width then t:SetWidth(width) end
+    if height then t:SetHeight(height) end
+    return t
+end
+
+local function ApplyBronzePanel(frame, usePanelColor)
+    if not frame or frame.AAThemedPanel then return end
+    frame.AAThemedPanel = true
+    local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+    bg:SetAllPoints()
+    if usePanelColor then
+        bg:SetColorTexture(unpack(THEME.panel))
+    else
+        bg:SetColorTexture(unpack(THEME.bg))
+    end
+    frame.AABg = bg
+    frame.AABorderTop = AddBorderTexture(frame, "TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT", nil, 1)
+    frame.AABorderBottom = AddBorderTexture(frame, "BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", nil, 1)
+    frame.AABorderLeft = AddBorderTexture(frame, "TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT", 1, nil)
+    frame.AABorderRight = AddBorderTexture(frame, "TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT", 1, nil)
+end
+
+local function StyleBronzeButton(button)
+    if not button or button.AAStyledButton then return button end
+    button.AAStyledButton = true
+    if button.Left then button.Left:SetAlpha(0) end
+    if button.Middle then button.Middle:SetAlpha(0) end
+    if button.Right then button.Right:SetAlpha(0) end
+    local bg = button:CreateTexture(nil, "BACKGROUND", nil, -7)
+    bg:SetAllPoints(button)
+    bg:SetColorTexture(unpack(THEME.bg))
+    button.AABtnBg = bg
+    local borders = {}
+    local function edge(point1, relative1, point2, relative2, width, height)
+        local t = button:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(unpack(THEME.edge))
+        t:SetPoint(point1, button, relative1)
+        t:SetPoint(point2, button, relative2)
+        if width then t:SetWidth(width) end
+        if height then t:SetHeight(height) end
+        borders[#borders+1] = t
+        return t
+    end
+    edge("TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT", nil, 1)
+    edge("BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", nil, 1)
+    edge("TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT", 1, nil)
+    edge("TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT", 1, nil)
+    local shine = button:CreateTexture(nil, "ARTWORK")
+    shine:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+    shine:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -1)
+    shine:SetHeight(math.max(8, math.floor(button:GetHeight() * 0.45)))
+    shine:SetColorTexture(1, .95, .80, .08)
+    local label = button:GetFontString()
+    if label then label:SetTextColor(unpack(THEME.text)) end
+    local function refresh(state)
+        if state == "hover" then
+            bg:SetColorTexture(.18, .155, .105, .98)
+            if label then label:SetTextColor(unpack(THEME.textHi)) end
+            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edgeHi)) end
+        elseif state == "down" then
+            bg:SetColorTexture(.13, .105, .075, .98)
+            if label then label:SetTextColor(unpack(THEME.textHi)) end
+            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edgeHi)) end
+        else
+            bg:SetColorTexture(unpack(THEME.bg))
+            if label then label:SetTextColor(unpack(THEME.text)) end
+            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edge)) end
+        end
+    end
+    button:HookScript("OnEnter", function() refresh("hover") end)
+    button:HookScript("OnLeave", function() refresh("normal") end)
+    button:HookScript("OnMouseDown", function() refresh("down") end)
+    button:HookScript("OnMouseUp", function() refresh("hover") end)
+    button:HookScript("OnDisable", function()
+        refresh("normal")
+        if label then label:SetAlpha(.55) end
+    end)
+    button:HookScript("OnEnable", function()
+        if label then label:SetAlpha(1) end
+        refresh("normal")
+    end)
+    refresh("normal")
+    return button
+end
+
+
 local function Label(parent, font, text, x, y, width)
     local l = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
     l:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
@@ -11,12 +112,18 @@ local function Label(parent, font, text, x, y, width)
 end
 
 local function Button(parent, text, w, h, x, y, fn)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    local b = CreateFrame("Button", nil, parent)
     b:SetSize(w, h)
     b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    local caption = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    caption:SetPoint("CENTER", b, "CENTER", 0, 0)
+    caption:SetWidth(math.max(10, w - 12))
+    caption:SetJustifyH("CENTER")
+    b:SetFontString(caption)
     b:SetText(AA:Tr(text))
     AA:LocalizeWidget(b, text)
     b:SetScript("OnClick", fn)
+    StyleBronzeButton(b)
     return b
 end
 
@@ -29,16 +136,22 @@ local function Check(parent, text, x, y, fn)
         label:SetPoint("LEFT", b, "RIGHT", 4, 0)
         label:SetText(AA:Tr(text))
         AA:LocalizeWidget(label, text)
+        b.TextLabel = label
     end
+    -- Keep the original WoW checkbox artwork, with no extra bronze box.
     b:SetScript("OnClick", function(self) fn(not not self:GetChecked()) end)
     return b
 end
 
-local function SetTooltip(button, link)
+local function SetTooltip(button, link, explanation)
     if link then
         button:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetHyperlink(link)
+            if explanation then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(explanation, .94, .80, .52, true)
+            end
             GameTooltip:Show()
         end)
         button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -57,7 +170,7 @@ local function Selector(parent, x, y, w, provider, onSelect)
     menu:SetFrameLevel(100)
     local bg = menu:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetColorTexture(.06, .09, .15, .98)
+    bg:SetColorTexture(.09, .08, .07, .98)
     menu:Hide()
     local options = {}
     chosen:SetScript("OnClick", function()
@@ -96,7 +209,13 @@ function AA:CreateUI()
     f:SetScript("OnDragStart", function(self) self:StartMoving() end)
     f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     f:Hide()
-    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. AA:Tr("Mon équipement")) end
+    ApplyBronzePanel(f)
+    if f.Bg then f.Bg:SetVertexColor(.12, .10, .08, .96) end
+    if f.Inset and f.Inset.Bg then f.Inset.Bg:SetVertexColor(.09, .08, .07, .96) end
+    if f.TitleText then
+        f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. AA:Tr("Mon équipement"))
+        f.TitleText:SetTextColor(unpack(THEME.textHi))
+    end
     if UISpecialFrames then table.insert(UISpecialFrames, "AutoArmorOptionsWindow") end
 
     local pages = {}
@@ -105,6 +224,7 @@ function AA:CreateUI()
         page:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -76)
         page:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 51)
         page:Hide()
+        ApplyBronzePanel(page, true)
         pages[name] = page
     end
     self.window = f
@@ -125,6 +245,11 @@ function AA:CreateUI()
         AA:ShowPage("diagnostic")
         AA:AnalyzeDiagnostics()
     end)
+    local divider = f:CreateTexture(nil, "BORDER")
+    divider:SetColorTexture(unpack(THEME.edge))
+    divider:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -71)
+    divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -71)
+    divider:SetHeight(1)
 
     local gear = pages.gear
     Label(gear, "GameFontHighlightSmall", "Compare les objets de tes sacs et choisis ceux que tu veux porter.", 8, -4, 672)
@@ -152,7 +277,7 @@ function AA:CreateUI()
         if i % 2 == 0 then
             local shade = row:CreateTexture(nil, "BACKGROUND")
             shade:SetAllPoints()
-            shade:SetColorTexture(.12, .18, .27, .4)
+            shade:SetColorTexture(.16, .12, .08, .38)
         end
         Label(row, "GameFontHighlightSmall", def.name, 8, -7, 117)
         row.worn = Label(row, "GameFontHighlightSmall", "—", 135, -7, 90)
@@ -184,7 +309,8 @@ function AA:CreateUI()
     settingsScroll:SetPoint("TOPLEFT", settings, "TOPLEFT", 0, -40)
     settingsScroll:SetPoint("BOTTOMRIGHT", settings, "BOTTOMRIGHT", -23, 0)
     local settingsBody = CreateFrame("Frame", nil, settingsScroll)
-    settingsBody:SetSize(670, 1280)
+    ApplyBronzePanel(settingsBody, true)
+    settingsBody:SetSize(670, 1395)
     settingsScroll:SetScrollChild(settingsBody)
     Label(settingsBody, "GameFontNormalLarge", "Comment choisir mes équipements", 14, -8, 600)
     f.playerInfo = Label(settingsBody, "GameFontHighlightSmall", "", 16, -42, 660)
@@ -229,37 +355,41 @@ function AA:CreateUI()
         function(v) AA:SetOption("autoWeapons", v) end)
     f.smartWeaponsCheck = Check(settingsBody, "Adapter les armes à ma classe et à mon rôle", 14, -724,
         function(v) AA:SetOption("smartWeapons", v) end)
+    f.effectCheck = Check(settingsBody, "Préserver les objets aux effets spéciaux non évaluables", 14, -815,
+        function(v) AA:SetOption("protectSpecialEffects", v) end)
     Label(settingsBody, "GameFontHighlightSmall",
         "Activé par défaut. Sans rôle connu : comparaison de l'ilvl.\n" ..
         "Configuration conservée (1 ou 2 mains, bouclier, distance).\n" ..
         "En Tank, un bouclier déjà porté reste en place jusqu'à ton choix.", 48, -763, 615)
-    f.adviceCheck = Check(settingsBody, "Conseiller une récompense avant de rendre une quête", 14, -840,
+    f.weaponPlanButton = Button(settingsBody, "Examiner la configuration d'armes", 292, 27, 14, -853,
+        function() AA:ReviewWeaponSetup() end)
+    f.adviceCheck = Check(settingsBody, "Conseiller une récompense avant de rendre une quête", 14, -895,
         function(v) AA:SetOption("questAdvice", v) end)
-    f.notifyCheck = Check(settingsBody, "Afficher une petite notification après optimisation", 14, -878,
+    f.notifyCheck = Check(settingsBody, "Afficher une petite notification après optimisation", 14, -935,
         function(v) AA:SetOption("showNotifications", v) end)
     Label(settingsBody, "GameFontHighlightSmall",
         "Pour protéger une pièce précise, ouvre l'onglet Objets protégés.\n" ..
-        "La restauration de la dernière optimisation se trouve dans Équipement.", 48, -918, 610)
+        "La restauration de la dernière optimisation se trouve dans Équipement.", 48, -975, 610)
 
-    Label(settingsBody, "GameFontNormalLarge", "Respect de mes changements manuels", 14, -975, 630)
-    f.manualCheck = Check(settingsBody, "Ne pas remplacer automatiquement une pièce changée par moi", 14, -1010,
+    Label(settingsBody, "GameFontNormalLarge", "Respect de mes changements manuels", 14, -1035, 630)
+    f.manualCheck = Check(settingsBody, "Ne pas remplacer automatiquement une pièce changée par moi", 14, -1070,
         function(v) AA:SetOption("respectManualChanges", v) end)
-    f.manualInfo = Label(settingsBody, "GameFontHighlightSmall", "", 48, -1046, 620)
-    f.manualReset = Button(settingsBody, "Réautoriser tous les emplacements", 265, 26, 14, -1082,
+    f.manualInfo = Label(settingsBody, "GameFontHighlightSmall", "", 48, -1106, 620)
+    f.manualReset = Button(settingsBody, "Réautoriser tous les emplacements", 265, 26, 14, -1142,
         function()
             AA:ReleaseManualOverrides()
             AA:SetStatus("Tous les emplacements peuvent de nouveau etre optimises automatiquement.")
         end)
-    Label(settingsBody, "GameFontNormalLarge", "Position de la notification", 14, -1131, 630)
-    f.toastMoveButton = Button(settingsBody, "Déplacer", 132, 27, 14, -1168,
+    Label(settingsBody, "GameFontNormalLarge", "Position de la notification", 14, -1191, 630)
+    f.toastMoveButton = Button(settingsBody, "Déplacer", 132, 27, 14, -1228,
         function()
             if AA.toastPositioning then AA:EndToastPositioning() else AA:BeginToastPositioning() end
         end)
-    f.toastResetButton = Button(settingsBody, "Position par défaut", 185, 27, 160, -1168,
+    f.toastResetButton = Button(settingsBody, "Position par défaut", 185, 27, 160, -1228,
         function() AA:ResetToastPosition() end)
     Label(settingsBody, "GameFontHighlightSmall",
         "Glisse la notification avec la souris, puis clic droit dessus pour terminer.\n" ..
-        "Ta position est conservée, meme apres une reconnexion.", 16, -1208, 645)
+        "Ta position est conservée, meme apres une reconnexion.", 16, -1268, 645)
 
     local protect = pages.protection
     Label(protect, "GameFontNormalLarge", "Choisir les objets à ne jamais remplacer", 12, -8, 640)
@@ -278,9 +408,15 @@ function AA:CreateUI()
         local label=row:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
         label:SetPoint("LEFT",row,"LEFT",8,0)
         label:SetWidth(475);label:SetJustifyH("LEFT")
-        local toggle=CreateFrame("Button",nil,row,"UIPanelButtonTemplate")
+        local toggle=CreateFrame("Button",nil,row)
         toggle:SetSize(155,27)
         toggle:SetPoint("RIGHT",row,"RIGHT",-5,0)
+        local caption=toggle:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
+        caption:SetPoint("CENTER",toggle,"CENTER")
+        caption:SetWidth(145)
+        caption:SetJustifyH("CENTER")
+        toggle:SetFontString(caption)
+        StyleBronzeButton(toggle)
         row.label=label; row.toggle=toggle
         f.protectRows[i]=row
     end
@@ -307,7 +443,7 @@ function AA:CreateUI()
         if i % 2 == 0 then
             local shade = row:CreateTexture(nil, "BACKGROUND")
             shade:SetAllPoints()
-            shade:SetColorTexture(.12, .18, .27, .45)
+            shade:SetColorTexture(.16, .12, .08, .385)
         end
         row.heading = Label(row, "GameFontNormalSmall", "", 6, -5, 510)
         row.detail = Label(row, "GameFontHighlightSmall", "", 6, -25, 515)
@@ -346,7 +482,7 @@ function AA:CreateUI()
         row:SetPoint("TOPLEFT", diagnostic, "TOPLEFT", 8, -108 - (i-1)*48)
         if i % 2 == 0 then
             local shade = row:CreateTexture(nil, "BACKGROUND")
-            shade:SetAllPoints(); shade:SetColorTexture(.12, .18, .27, .45)
+            shade:SetAllPoints(); shade:SetColorTexture(.16, .12, .08, .385)
         end
         row.title = Label(row, "GameFontNormalSmall", "", 8, -4, 630)
         row.detail = Label(row, "GameFontHighlightSmall", "", 8, -23, 633)
@@ -398,7 +534,7 @@ function AA:RefreshUI()
         local worn = self:ReadWorn(slot)
         row.worn:SetText(worn.level and ("ilvl " .. worn.level) or (worn.link and "?" or self:Tr("Vide")))
         SetTooltip(row.wornTip, worn.link)
-        SetTooltip(row.offerTip, offer and offer.link or nil)
+        SetTooltip(row.offerTip, offer and offer.link or nil, offer and self:ExplainUpgrade(offer) or nil)
         row.lock:SetChecked(not not self.db.locked[slot])
         row.select:SetChecked((offer and self.selected[slot]) or false)
         row.select:SetEnabled(not locked and not self.busy and offer ~= nil)
@@ -423,12 +559,14 @@ function AA:RefreshUI()
     f.weaponsCheck:SetChecked(self.db.includeWeapons)
     f.autoWeaponsCheck:SetChecked(self.db.autoWeapons)
     f.smartWeaponsCheck:SetChecked(self.db.smartWeapons)
+    f.effectCheck:SetChecked(self.db.protectSpecialEffects)
     f.adviceCheck:SetChecked(self.db.questAdvice)
     f.notifyCheck:SetChecked(self.db.showNotifications)
     f.manualCheck:SetChecked(self.db.respectManualChanges)
     local hold = self:ManualHoldCount()
     f.manualInfo:SetText(self:TF("%d emplacement(s) en pause pour les automatismes.\nUn clic sur Optimiser permet de reprendre la main.", hold))
     f.manualReset:SetEnabled(hold > 0)
+    f.weaponPlanButton:SetEnabled(not self.busy and self.db.includeWeapons)
     f.toastMoveButton:SetText(self:Tr(self.toastPositioning and "Terminer" or "Déplacer"))
     if f.activeTab == "protection" then self:RefreshProtectionPage() end
     if f.activeTab == "history" then self:RefreshHistoryPage() end

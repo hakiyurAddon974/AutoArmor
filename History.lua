@@ -3,7 +3,7 @@ local limit = 30
 local names = {}
 
 function AA:HistorySourceName(reason)
-    return self:Tr(({manual = "Bouton", quest = "Quête", level = "Niveau", undo = "Restauration"})[reason] or "Optimisation")
+    return self:Tr(({manual = "Bouton", quest = "Quête", level = "Niveau", undo = "Restauration", weaponSetup = "Configuration d'armes"})[reason] or "Optimisation")
 end
 
 function AA:HistorySlotName(slot)

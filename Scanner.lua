@@ -111,6 +111,30 @@ function AA:WeaponFamily(equipLoc, slot)
     end
 end
 
+-- Compatibility check independent of the currently equipped weapon family.
+-- Used only by the confirmation-based weapon configuration advisor.
+function AA:IsBasicWeaponAllowed(item, slot)
+    if not item or not weaponSlots[slot] or not weapons[item.equipLoc] then return false end
+    if not self.db or not self.db.includeWeapons then return false end
+    if (item.minLevel or 0) > (UnitLevel("player") or 1) then return false end
+    if self:IsItemProtected(item.itemID) then return false end
+    if self.db.skipUnboundBoE and item.bindType == 2 and not item.isBound then return false end
+    if C_Item.IsEquippableItem and not C_Item.IsEquippableItem(item.link) then return false end
+    if item.classID == 2 then
+        local allowed = allowedWeaponSubclasses[self:GetClass()] or {}
+        local requirement = allowed[item.subclassID]
+        if not requirement or (type(requirement) == "number"
+            and (UnitLevel("player") or 1) < requirement) then return false end
+    elseif item.classID ~= 4 or
+        (item.equipLoc ~= "INVTYPE_SHIELD" and item.equipLoc ~= "INVTYPE_HOLDABLE") then
+        return false
+    end
+    if item.equipLoc == "INVTYPE_SHIELD" and
+        self:GetClass() ~= "WARRIOR" and self:GetClass() ~= "PALADIN" and
+        self:GetClass() ~= "SHAMAN" then return false end
+    return self:WeaponFamily(item.equipLoc, slot) ~= nil
+end
+
 function AA:IsCandidateAllowed(item, slot)
     if not item or not locationToSlots[item.equipLoc] then return false end
     if (item.minLevel or 0) > (UnitLevel("player") or 1) then return false end
@@ -171,6 +195,31 @@ function AA:IsCandidateAllowed(item, slot)
     return true
 end
 
+-- Conservative effect detection: we can see text, not accurately simulate a proc.
+-- When a worn item has an unmodelled use/equip effect, automatic gear
+-- replacement stops rather than pretending its value is zero.
+function AA:HasUnmodelledEffect(link)
+    if not link or not C_TooltipInfo or type(C_TooltipInfo.GetHyperlink) ~= "function" then
+        return false
+    end
+    local ok, data = pcall(C_TooltipInfo.GetHyperlink, link)
+    if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return false end
+    for _, line in ipairs(data.lines) do
+        local text = type(line) == "table" and (line.leftText or line.text)
+        if type(text) == "string" then
+            -- An explicit Equip/Use tooltip effect, not ordinary stat bonuses.
+            local clean = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+            if clean:match("^Equip:") or clean:match("^Use:") or
+                clean:match("^Équipé%s*:") or clean:match("^Equipé%s*:") or
+                clean:match("^Utiliser%s*:") or clean:match("^Utilisation%s*:") or
+                clean:match("^Set%s*:") or clean:match("^Ensemble%s*:") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function Paired(slot)
     if slot==11 then return 12 elseif slot==12 then return 11 end
     if slot==13 then return 14 elseif slot==14 then return 13 end
@@ -188,6 +237,8 @@ function AA:EvaluateItemForSlot(item, slot, equipped)
     if not self:IsCandidateAllowed(item,slot) then return nil end
     local worn = equipped or self:ReadWorn(slot)
     if worn.link and not worn.level then return nil end
+    if worn.link and self.db.protectSpecialEffects
+        and self:HasUnmodelledEffect(worn.link) then return nil end
     if (slot == 11 or slot == 12 or slot == 13 or slot == 14) then
         local paired = Paired(slot)
         local other = self:ReadWorn(paired)
@@ -202,6 +253,21 @@ function AA:EvaluateItemForSlot(item, slot, equipped)
             or self:ScoreItem(worn.link, worn.level, subclass)
     else
         oldScore = 0
+    end
+    -- If either item's stat data is missing, don't compare incomparable
+    -- scales (weighted score vs ilvl): fall back to ilvl on BOTH sides.
+    if worn.link and self.db then
+        local profile = self:GetProfile()
+        local usesWeights = profile.weights and
+            ((weaponSlots[slot] and self.db.smartWeapons) or self.db.scoringMode == "role")
+        if usesWeights and C_Item and type(C_Item.GetItemStats) == "function" then
+            local aOK, aStats = pcall(C_Item.GetItemStats, item.link)
+            local bOK, bStats = pcall(C_Item.GetItemStats, worn.link)
+            if not aOK or not bOK or type(aStats) ~= "table" or not next(aStats)
+                or type(bStats) ~= "table" or not next(bStats) then
+                score, oldScore = item.level, worn.level
+            end
+        end
     end
     if not score or not oldScore or score <= oldScore + .001 then return nil end
     return {slot=slot,link=item.link,itemID=item.itemID,level=item.level,
