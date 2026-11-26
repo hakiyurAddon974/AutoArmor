@@ -1,9 +1,9 @@
 ## Interface: 16001
-## Title: AutoArmor |cff7dd7ffv0.7.5-beta.3|r
+## Title: AutoArmor |cff7dd7ffv0.8.0-beta.3|r
 ## Notes: Smart gear upgrades for your class and role. One-click or automatic optimization, equipment protection, diagnostics and history.
 ## IconTexture: Interface\AddOns\AutoArmor\Textures\AutoArmorListIcon
 ## Author: AutoArmor Project
-## Version: 0.7.5-beta.3
+## Version: 0.8.0-beta.3
 ## X-Curse-Project-ID: 1800518
 ## OptionalDeps: Bagnon
 ## SavedVariables: AutoArmorDB
@@ -11,7 +11,8 @@
 Core.lua
 Locale.lua
 Database.lua
-Profiles.lua
+ItemData.lua
+Scoring.lua
 Scanner.lua
 Diagnostic.lua
 Protection.lua

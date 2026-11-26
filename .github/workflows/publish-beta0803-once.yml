@@ -1,0 +1,62 @@
+name: AutoArmor - approved release v0.8.0-beta.3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/release-trigger-v0.8.0-beta.3'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: publish-autoarmor-v0.8.0-beta.3
+  cancel-in-progress: false
+
+jobs:
+  verify-tag-publish:
+    if: contains(github.event.head_commit.message, 'Publish approved AutoArmor v0.8.0-beta.3')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out approved AutoArmor
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify approved runtime files
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^## Version: 0.8.0-beta.3$' AutoArmor.toc
+          test ! -e Profiles.lua
+          sha256sum -c tests/approved-0.8.0-beta.3.sha256
+
+      - name: Install Lua test runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y liblua5.4-0
+
+      - name: Run regression scenarios
+        run: python3 tests/run.py
+
+      - name: Create approved version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags
+          if git rev-parse --verify -q refs/tags/v0.8.0-beta.3 >/dev/null; then
+            echo 'Refusing duplicate publication: tag already exists'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a v0.8.0-beta.3 -m 'AutoArmor v0.8.0-beta.3 - owner-approved'
+          git push origin refs/tags/v0.8.0-beta.3
+
+      - name: Publish approved beta through the existing release pipeline
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref v0.8.0-beta.3 -f publish=true

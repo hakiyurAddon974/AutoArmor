@@ -120,7 +120,6 @@ local en = {
     ["Maîtrise des bêtes (DPS)"] = "Beast Mastery (DPS)",
     ["Mes derniers changements d'équipement"] = "Recent Equipment Changes",
     ["Mes protections"] = "Equipment Protection",
-    ["Mon profil :"] = "My profile:",
     ["Mon équipement"] = "My Gear",
     ["Même anneau ou bijou déjà porté dans l'autre emplacement"] = "Same ring or trinket already equipped in the other slot",
     ["Ne pas remplacer automatiquement une pièce changée par moi"] = "Do not auto-replace items I equipped manually",
@@ -184,7 +183,6 @@ local en = {
     ["Réautoriser tous les emplacements"] = "Resume Auto-Equip on All Slots",
     ["Sac"] = "Bag",
     ["Sacré (Soins)"] = "Holy (Healer)",
-    ["Sans rôle défini, AutoArmor compare simplement les niveaux d'objet.\nTu peux aussi sélectionner un profil toi-même."] = "If no role is detected, AutoArmor compares item levels only.\nYou can also choose a profile manually.",
     ["Suivant"] = "Next",
     ["Survie (DPS)"] = "Survival (DPS)",
     ["Taille"] = "Waist",
@@ -212,15 +210,11 @@ local en = {
     ["Équipement"] = "Equipment",
     ["Équipement demandé : vérification en cours…"] = "Equipment change requested: verifying...",
     ["Équiper la sélection"] = "Equip Selected",
-    ["Profil tank (détecté)"] = "Tank profile (detected)",
-    ["Profil soigneur (détecté)"] = "Healer profile (detected)",
     ["Préserver les objets aux effets spéciaux non évaluables"] = "Protect items with unassessed special effects",
     ["Examiner la configuration d'armes"] = "Review weapon configuration",
     ["Effet spécial non chiffrable sur la pièce portée"] = "Unquantified special effect on equipped item",
     ["Différence de niveau d'objet : %+d."] = "Item level difference: %+d.",
     ["DPS d'arme lisible : %.1f."] = "Readable weapon DPS: %.1f.",
-    ["Statistiques pondérées selon le profil ; résultat indicatif."] = "Stats weighted for your profile; estimated result.",
-    ["Une arme à deux mains est estimée plus intéressante pour ce profil DPS."] = "A two-handed weapon is estimated to suit this DPS profile better.",
     ["Une arme à une main et un bouclier sont estimés plus adaptés au rôle tank."] = "A one-handed weapon and shield are estimated to better suit the tank role.",
     ["Configuration d'armes annulée : emplacement protégé ou modifié."] = "Weapon setup cancelled: a slot is locked or manually changed.",
     ["Configuration d'armes modifiée : recommence l'analyse."] = "Weapon setup has changed; run the review again.",
@@ -230,7 +224,6 @@ local en = {
     ["Configuration d'armes mise à jour. Annulation possible."] = "Weapon setup updated. Undo may be available.",
     ["Aucun changement d'armes confirmé : le jeu peut avoir refusé l'action."] = "No weapon change confirmed: WoW may have refused the request.",
     ["Impossible de modifier les armes en combat."] = "Cannot change weapons during combat.",
-    ["Choisis un profil DPS ou tank pour comparer les configurations d'armes."] = "Choose a DPS or tank profile to compare weapon setups.",
     ["Aucune configuration d'armes plus adaptée détectée dans tes sacs."] = "No more suitable weapon setup found in your bags.",
     ["Confirmation indisponible : aucun équipement modifié."] = "Confirmation unavailable: equipment was not changed.",
     ["Changer la configuration d'armes ?"] = "Change weapon configuration?",
@@ -239,6 +232,150 @@ local en = {
     ["Confirmer"] = "Confirm",
     ["Configuration d'armes"] = "Weapon setup",
 }
+
+-- Local test 0.8: interface and decision explanations.
+for key,value in pairs({
+    ["%d emplacement(s) mis à jour."]="%d slot(s) updated.",
+    ["%d objet(s) examiné(s)."]="%d item(s) inspected.",
+    ["%d objet(s) non confirmé(s) · ouvre le diagnostic"]="%d unconfirmed item(s) · open Diagnostics",
+    ["%d objet(s) équipé(s)."]="%d item(s) equipped.",
+    ["%d équipé(s), %d non confirmé(s)."]="%d equipped, %d unconfirmed.",
+    [" et %d autre(s)."]=" and %d more.",
+    ["Agilité"]="Agility",
+    ["Endurance"]="Stamina",
+    ["Esprit"]="Spirit",
+    ["Force"]="Strength",
+    ["Intelligence"]="Intellect",
+    ["Puissance des sorts"]="Spell power",
+    ["Puissance d’attaque"]="Attack power",
+    ["Attaque à distance"]="Ranged attack power",
+    ["Soins"]="Healing",
+    ["Toucher"]="Hit",
+    ["Critique"]="Critical strike",
+    ["Hâte"]="Haste",
+    ["Armure"]="Armor",
+    ["DPS d’arme"]="Weapon DPS",
+    ["DPS d’arme indisponible"]="Weapon DPS unavailable",
+    ["Ambidextrie non confirmée"]="Dual wield not confirmed",
+    ["Amélioration"]="Upgrade",
+    ["Amélioration estimée"]="Estimated upgrade",
+    ["Ancienne pièce absente des sacs."]="The previous item is no longer in your bags.",
+    ["Ancienne pièce en chargement."]="The previous item is still loading.",
+    ["Aperçu de notification"]="Notification preview",
+    ["Aperçu uniquement · aucun objet modifié"]="Preview only · no equipment changed",
+    ["Armes désactivées"]="Weapons disabled",
+    ["Aucun objet à confirmer."]="No items need confirmation.",
+    ["Aucun équipement confirmé. Tes objets sont conservés."]="No equipment change was confirmed.",
+    ["Aucune amélioration évaluée dans tes sacs."]="No evaluated upgrades in your bags.",
+    ["Aucune amélioration évaluée à équiper."]="No evaluated upgrades to equip.",
+    ["Aucune configuration d’armes plus adaptée détectée."]="No better weapon configuration found.",
+    ["Bonus d’ensemble à confirmer"]="Set bonus needs confirmation",
+    ["Changements confirmés par le jeu"]="Changes confirmed by the game",
+    ["Changer la configuration d’armes ?"]="Change your weapon configuration?",
+    ["Comparer les armes par statistiques (sinon : niveau d’objet)"]="Compare weapon stats (otherwise: item level)",
+    ["Comparer les configurations d’armes"]="Review weapon configurations",
+    ["Conserver strictement le type d’armure de ma classe"]="Only compare my class’s preferred armor type",
+    ["Données en chargement"]="Item data is loading",
+    ["Désactive cette préférence pour comparer aussi les armures plus légères utilisables."]="Turn this off to also compare lighter armor your class can wear.",
+    ["Effet spécial à confirmer"]="Special effect needs confirmation",
+    ["Emplacement protégé"]="Protected slot",
+    ["Impossible d’équiper pendant le combat."]="Cannot equip items during combat.",
+    ["La classe guide la progression. Un rôle ambigu demande confirmation."]="Class stats guide leveling. An unclear role requires confirmation.",
+    ["Le jeu n’a confirmé aucun changement."]="The game did not confirm any changes.",
+    ["Les automatismes restent distincts. Désactive-les pour un essai sans équipement automatique."]="Automatic triggers remain separate. Turn them off to test without automatic equipment changes.",
+    ["Les effets et bonus non évalués restent à vérifier."]="Effects and bonuses that could not be evaluated need your review.",
+    ["Les notifications affichent le résultat confirmé et permettent d’annuler."]="Notifications show confirmed results and let you undo changes.",
+    ["Libère une place dans tes sacs pour changer les armes."]="Free one bag slot before changing weapons.",
+    ["Limite d’objets uniques"]="Unique-equipped limit",
+    ["Mise à jour partielle"]="Partially updated",
+    ["Même exemplaire utilisé deux fois"]="The same physical item cannot fill two slots",
+    ["Objet devenu incompatible ou protégé."]="This item is now incompatible or protected.",
+    ["Objet déplacé ou absent : relance l’analyse."]="An item moved or is missing. Scan again.",
+    ["Objet non lié"]="Unbound item",
+    ["Objet non équipable"]="Item cannot be equipped",
+    ["Objet protégé ou réservé"]="Protected or reserved item",
+    ["Ouvre Équipement pour voir les explications"]="Open Equipment to see the explanations",
+    ["Perte d’un bonus d’ensemble actif"]="An active set bonus would be lost",
+    ["Plan annulé : une protection a changé."]="Plan cancelled: protection settings have changed.",
+    ["Plan à réévaluer ou à confirmer."]="This plan needs another scan or confirmation.",
+    ["Préférence d’armure stricte"]="Strict armor preference",
+    ["Repose l’objet tenu par le curseur."]="Put down the item on your cursor.",
+    ["Restauration incomplète : une ancienne pièce est absente."]="Cannot fully restore: a previous item is missing.",
+    ["Réduire les animations"]="Reduce motion",
+    ["Réserve du second rôle mise à jour."]="Second-role reserve updated.",
+    ["Réservé"]="Reserved",
+    ["Second rôle"]="Second role",
+    ["Tester l’animation"]="Preview animation",
+    ["Type d’arme incompatible"]="Incompatible weapon type",
+    ["Type d’arme à confirmer pour les techniques"]="Check weapon requirements for your abilities",
+    ["Type d’armure incompatible"]="Incompatible armor type",
+    ["Unicité à vérifier"]="Item uniqueness needs verification",
+    ["Vitesse d’arme différente : vérifier les techniques"]="Weapon speed changed: check your abilities",
+    ["Voici l’animation de confirmation."]="This is the confirmation animation.",
+    ["Vérification de %d emplacement(s)…"]="Verifying %d equipment slot(s)…",
+    ["Vérification des équipements…"]="Verifying equipment…",
+    ["À confirmer"]="Review needed",
+    ["Équilibré"]="Balanced",
+    ["Équipement conservé"]="Equipment kept",
+    ["Équipement en cours"]="Equipping items",
+    ["Équipement inchangé"]="Equipment unchanged",
+    ["Équipement mis à jour"]="Equipment updated",
+    ["Équipement modifié : relance l’analyse."]="Your equipment changed. Scan again.",
+    ["Équipement restauré"]="Equipment restored",
+    ["Calcul AutoArmor"]="AutoArmor scoring",
+    ["Automatismes et protections"]="Automation and protection",
+    ["Affichage"]="Display",
+    ["Donjon"]="Dungeon",
+    ["Progression de classe"]="Class leveling",
+    ["Estimation interne"]="Internal estimate",
+    ["Comparer les statistiques dans les infobulles."]="Compare the stats in the tooltips.",
+    ["Confirmer les objets incertains ?"]="Confirm items that need review?",
+    ["Confirmation indisponible."]="Confirmation is unavailable.",
+    ["Confirmer"]="Confirm",
+    ["Survole un objet pour comprendre la recommandation."]="Hover over an item to understand the recommendation.",
+    ["Copier le diagnostic"]="Copy diagnostics",
+    ["Diagnostic AutoArmor"]="AutoArmor diagnostics",
+    ["Ctrl+A, puis Ctrl+C pour copier le diagnostic."]="Press Ctrl+A, then Ctrl+C to copy diagnostics.",
+    ["Une opération est déjà en cours."]="An operation is already running.",
+    ["Aucun gain selon les critères actuels"]="No gain under the current settings",
+    ["Choix manuel conservé pour les automatismes"]="Your manual choice is kept during automatic upgrades",
+    ["Emplacement incompatible"]="Incompatible slot",
+    ["Niveau insuffisant"]="Level requirement not met",
+    ["Bouclier incompatible"]="Incompatible shield",
+    ["Configuration incompatible"]="Incompatible weapon configuration",
+    ["Arme principale requise"]="Main-hand weapon required",
+    ["Deux mains incompatibles avec la main gauche"]="A two-handed weapon cannot be combined with an off-hand",
+    ["En attente de la confirmation du jeu"]="Waiting for the game to confirm",
+    ["Position de la notification"]="Notification position",
+    ["Langue des effets non prise en charge"]="Effect tooltip language is not supported",
+    ["Mode conseil : le bouton AA montre les propositions"]="Advice mode: the AA button shows recommendations",
+    ["Solo : un peu plus de survie"]="Solo: a little more survivability",
+    ["GLISSER"]="DRAG",
+}) do en[key]=value end
+
+
+en['Objet temporairement verrouillé']='Item temporarily locked'
+
+en["Choix des équipements"]="Gear choices"
+en["Calcul automatique"]="Automatic scoring"
+en["AutoArmor utilise ta classe, tes talents et les statistiques des objets. Rien à configurer."]="AutoArmor uses your class, talents and item stats. No setup needed."
+en["Tenir compte des statistiques de ma classe et de mes talents"]="Use stats suited to my class and talents"
+en["Une décision expliquée"]="Understand each recommendation"
+en["Survole une proposition pour voir les statistiques comparées. Un effet ou un rôle incertain demande une confirmation avant tout changement."]="Hover over a recommendation to compare stats. Uncertain effects or roles require confirmation before any change."
+en["Statistiques à vérifier"]="Review item stats"
+en["Rôle incertain : vérifier les statistiques"]="Uncertain role: review item stats"
+en["Estimation selon ta classe et tes talents. Vérifie les effets et techniques."]="Estimated for your class and talents. Check effects and abilities."
+en["Ouvre le diagnostic pour voir les explications"]="Open Diagnostics to see the explanations"
+en["Certains objets demandent de vérifier les effets ou les statistiques."]="Some items need their effects or stats checked."
+
+en["Spécialisation souhaitée"]="Intended specialization"
+en["Automatique (selon mes talents)"]="Automatic (based on my talents)"
+en["Tenir compte des statistiques de la spécialisation souhaitée"]="Use stats suited to the intended specialization"
+en["Ton choix reste prioritaire, même si tu joues une autre spécialisation dans tes talents."]="Your choice takes priority, even when your current talents belong to another specialization."
+en["Détection incertaine : choisis la spécialisation que tu souhaites jouer."]="Detection is uncertain: choose the specialization you intend to play."
+en["Détection du jeu ou arbre de talents dominant. Tu peux choisir une autre spécialisation."]="Uses the game specialization or dominant talent tree. You can choose another specialization."
+en["Spécialisation choisie"]="Selected specialization"
+en["Survole une proposition pour voir les statistiques comparées. Les effets incertains restent à confirmer."]="Hover over a recommendation to compare stats. Uncertain effects still require confirmation."
 
 function AA:GetLanguage()
     return self.db and self.db.language == "fr" and "fr" or "en"
@@ -250,7 +387,19 @@ function AA:Tr(key)
     -- can be retranslated immediately after a language change.
     local requiredLevel = key:match("^Niveau (%d+) requis$")
     if requiredLevel then return string.format(en["Niveau %d requis"], tonumber(requiredLevel)) end
-    return en[key] or key
+    if en[key] then return en[key] end
+    if key:find(" · ",1,true) then
+        local parts={};local start=1
+        while true do
+            local i,j=key:find(" · ",start,true)
+            local part=key:sub(start,i and i-1 or #key)
+            parts[#parts+1]=en[part] or part
+            if not i then break end
+            start=j+1
+        end
+        return table.concat(parts," · ")
+    end
+    return key
 end
 
 function AA:TF(key, ...)
@@ -265,6 +414,7 @@ function AA:LocalizeWidget(widget, source)
 end
 
 function AA:RefreshLanguage()
+    if self.CloseChoiceMenu then self:CloseChoiceMenu() end
     for _, entry in ipairs(self._i18nWidgets or {}) do
         if entry.widget and entry.widget.SetText then
             entry.widget:SetText(self:Tr(entry.source))

@@ -45,7 +45,7 @@ function AA:ShowQuestRecommendation()
         f:Hide()
         self.questPanel=f
     end
-    local mode=self.db.scoringMode=="role" and self:GetProfile().weights and "score" or "ilvl"
+    local mode=(self.db.scoringMode=="role" or (self:IsWeaponSlot(best.offer.slot) and self.db.smartWeapons)) and "score" or "ilvl"
     local txt = self:TF("Choix n°%d : %s\nGain estimé (%s) : +%s.", best.index, best.link or "", mode, string.format("%.1f", best.offer.gain))
     self.questPanel.title:SetText(self:Tr("AutoArmor • Conseil de quête"))
     self.questPanel.message:SetText(txt)

@@ -49,281 +49,257 @@ function AA:GetArmorSubclass()
     return tier or 1
 end
 
-function AA:GetLevel(link)
-    if not link then return nil end
-    local lv = C_Item.GetDetailedItemLevelInfo(link)
-    return type(lv) == "number" and lv or nil
-end
-
-function AA:GetItemID(link)
-    if not link then return nil end
-    return C_Item.GetItemInfoInstant(link)
-end
-
-function AA:RequestItem(link)
-    if not link then return end
-    local id = C_Item.GetItemInfoInstant(link)
-    if id and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
-end
-
-function AA:ReadWorn(slot)
-    local link = GetInventoryItemLink("player", slot)
-    return {link=link, level=self:GetLevel(link), itemID=self:GetItemID(link)}
-end
-
-function AA:BuildItem(link)
-    if not link then return nil, false end
-    local name, _, _, _, minLevel, _, _, _, equipLoc, _, _, classID, subclassID, bindType = C_Item.GetItemInfo(link)
-    if not name then self:RequestItem(link); return nil, true end
-    local level = self:GetLevel(link)
-    if not level then self:RequestItem(link); return nil, true end
-    return {link=link, itemID=self:GetItemID(link), name=name, minLevel=minLevel or 0,
-        equipLoc=equipLoc, classID=classID, subclassID=subclassID, bindType=bindType,
-        level=level, isBound=true}, false
-end
-
-function AA:ReadBagItem(bag, bagSlot)
-    local entry = C_Container.GetContainerItemInfo(bag, bagSlot)
-    if not entry or not entry.hyperlink or entry.isLocked then return nil, false end
-    local item, unknown = self:BuildItem(entry.hyperlink)
-    if item then
-        item.itemID=entry.itemID or item.itemID
-        item.bag=bag; item.bagSlot=bagSlot; item.isBound=entry.isBound
-    end
-    return item, unknown
-end
-
-function AA:WeaponFamily(equipLoc, slot)
-    if slot == 18 then
-        return (equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or
-            equipLoc == "INVTYPE_THROWN" or equipLoc == "INVTYPE_RELIC") and "ranged" or nil
-    end
-    if slot == 16 then
-        if equipLoc == "INVTYPE_2HWEAPON" then return "twohand" end
-        if equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND" then return "onehand" end
-        return nil
-    end
-    if slot == 17 then
-        if equipLoc == "INVTYPE_SHIELD" then return "shield" end
-        if equipLoc == "INVTYPE_HOLDABLE" then return "held" end
-        if equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONOFFHAND" then return "offweapon" end
-        return nil
+function AA:WeaponFamily(loc,slot)
+    if slot==18 then return weapons[loc] and 'ranged' end
+    if slot==16 then
+        if loc=='INVTYPE_2HWEAPON' then return 'twohand' end
+        if loc=='INVTYPE_WEAPON' or loc=='INVTYPE_WEAPONMAINHAND' then return 'onehand' end
+    elseif slot==17 then
+        if loc=='INVTYPE_SHIELD' then return 'shield' end
+        if loc=='INVTYPE_HOLDABLE' then return 'held' end
+        if loc=='INVTYPE_WEAPON' or loc=='INVTYPE_WEAPONOFFHAND' then return 'offweapon' end
     end
 end
-
--- Compatibility check independent of the currently equipped weapon family.
--- Used only by the confirmation-based weapon configuration advisor.
-function AA:IsBasicWeaponAllowed(item, slot)
-    if not item or not weaponSlots[slot] or not weapons[item.equipLoc] then return false end
-    if not self.db or not self.db.includeWeapons then return false end
-    if (item.minLevel or 0) > (UnitLevel("player") or 1) then return false end
-    if self:IsItemProtected(item.itemID) then return false end
-    if self.db.skipUnboundBoE and item.bindType == 2 and not item.isBound then return false end
-    if C_Item.IsEquippableItem and not C_Item.IsEquippableItem(item.link) then return false end
-    if item.classID == 2 then
-        local allowed = allowedWeaponSubclasses[self:GetClass()] or {}
-        local requirement = allowed[item.subclassID]
-        if not requirement or (type(requirement) == "number"
-            and (UnitLevel("player") or 1) < requirement) then return false end
-    elseif item.classID ~= 4 or
-        (item.equipLoc ~= "INVTYPE_SHIELD" and item.equipLoc ~= "INVTYPE_HOLDABLE") then
-        return false
-    end
-    if item.equipLoc == "INVTYPE_SHIELD" and
-        self:GetClass() ~= "WARRIOR" and self:GetClass() ~= "PALADIN" and
-        self:GetClass() ~= "SHAMAN" then return false end
-    return self:WeaponFamily(item.equipLoc, slot) ~= nil
+function AA:IsBasicWeaponAllowed(item,slot)
+    return self:IsCandidateAllowed(item,slot,{allWeapons=true,ignoreSlot=true})
 end
-
-function AA:IsCandidateAllowed(item, slot)
-    if not item or not locationToSlots[item.equipLoc] then return false end
-    if (item.minLevel or 0) > (UnitLevel("player") or 1) then return false end
-    if self:IsSlotProtected(slot) or self:IsItemProtected(item.itemID) then return false end
-    if self.db.skipUnboundBoE and item.bindType == 2 and not item.isBound then return false end
-    if C_Item.IsEquippableItem and not C_Item.IsEquippableItem(item.link) then return false end
+function AA:IsCandidateAllowed(item,slot,options)
+    options=options or {}
+    if item and item.locked then return false,'Objet temporairement verrouillé' end
+    if not item or not item.link or not item.level then return false,'Données en chargement' end
+    local possible=false
+    for _,s in ipairs(locationToSlots[item.equipLoc] or {}) do if slot==s then possible=true end end
+    if not possible then return false,'Emplacement incompatible' end
+    if item.minLevel>(UnitLevel('player') or 1) then return false,'Niveau insuffisant' end
+    if not options.ignoreSlot and self:IsSlotProtected(slot) then return false,'Emplacement protégé' end
+    if self:IsItemProtected(item.itemID) or (self.IsReserveItem and self:IsReserveItem(item.itemID)) then return false,'Objet protégé ou réservé' end
+    if self.db.skipUnboundBoE and item.bindType==2 and item.isBound~=true then return false,'Objet non lié' end
+    if self:Call(C_Item and C_Item.IsEquippableItem,item.link)==false then return false,'Objet non équipable' end
     if weaponSlots[slot] then
-        if not self.db.includeWeapons then return false end
-        if not weapons[item.equipLoc] then return false end
-        if item.classID == 2 then
-            local allowed = allowedWeaponSubclasses[self:GetClass()] or {}
-            local required = allowed[item.subclassID]
-            if not required or (type(required)=="number" and UnitLevel("player")<required) then return false end
-        end
-        if item.equipLoc == "INVTYPE_SHIELD" and
-            self:GetClass() ~= "WARRIOR" and self:GetClass() ~= "PALADIN" and
-            self:GetClass() ~= "SHAMAN" then return false end
-        if item.classID ~= 2 and not (slot == 17 and item.classID == 4 and
-            item.equipLoc == "INVTYPE_SHIELD") and not
-            (item.classID == 4 and item.equipLoc == "INVTYPE_HOLDABLE") then return false end
-        local newFamily = self:WeaponFamily(item.equipLoc, slot)
-        if not newFamily then return false end
-        local profile = self.db.smartWeapons and self:GetProfile() or nil
-        local isTank = profile and profile.role == "TANK"
-        local worn = self:ReadWorn(slot)
-        -- On ne remplace PAS un bouclier de tank par une arme ou un objet tenu.
-        -- On ne force pas non plus une deuxième arme sur un personnage sans rôle.
-        if slot == 17 and isTank and newFamily ~= "shield" then return false end
-        if worn.link then
-            local _, _, _, oldLoc = C_Item.GetItemInfoInstant(worn.link)
-            local oldFamily = self:WeaponFamily(oldLoc, slot)
-            -- Un type inconnu ne doit jamais provoquer une conversion aveugle.
-            if not oldFamily or oldFamily ~= newFamily then return false end
-        else
-            if slot == 17 then
-                local main = GetInventoryItemLink("player", 16)
-                if not main then return false end
-                local _, _, _, mainLoc = C_Item.GetItemInfoInstant(main)
-                -- Une deux-mains interdit l'ajout automatique en main gauche.
-                if mainLoc ~= "INVTYPE_WEAPON" and
-                    mainLoc ~= "INVTYPE_WEAPONMAINHAND" then return false end
-                -- On équipe un bouclier sur main gauche vide SEULEMENT si un
-                -- profil tank est effectivement défini, jamais sans rôle.
-                if not (isTank and newFamily == "shield") then return false end
-            end
-            if slot == 16 and newFamily == "twohand" and
-                GetInventoryItemLink("player", 17) then return false end
+        if not self.db.includeWeapons then return false,'Armes désactivées' end
+        if item.classID==2 then
+            local allowed=(allowedWeaponSubclasses[self:GetClass()] or {})[item.subclassID]
+            if not allowed or (type(allowed)=='number' and UnitLevel('player')<allowed) then return false,'Type d’arme incompatible' end
+        elseif item.classID~=4 or (item.equipLoc~='INVTYPE_SHIELD' and item.equipLoc~='INVTYPE_HOLDABLE' and item.equipLoc~='INVTYPE_RELIC') then return false,'Type d’arme incompatible' end
+        if item.equipLoc=='INVTYPE_SHIELD' and self:GetClass()~='WARRIOR' and self:GetClass()~='PALADIN' and self:GetClass()~='SHAMAN' then return false,'Bouclier incompatible' end
+        local family=self:WeaponFamily(item.equipLoc,slot)
+        if not family then return false,'Configuration incompatible' end
+        if not options.allWeapons then
+            local worn=self:ReadWorn(slot)
+            if worn.link then
+                if self:WeaponFamily(worn.equipLoc,slot)~=family then return false,'Comparer les configurations d’armes' end
+            elseif slot==17 then return false,'Comparer les configurations d’armes' end
         end
         return true
     end
-    if item.classID ~= 4 then return false end
+    if item.classID~=4 then return false,'Objet non équipable' end
     if bodyArmor[slot] then
-        local tier = self:GetArmorSubclass()
-        if type(item.subclassID) ~= "number" then return false end
-        if item.subclassID > tier or item.subclassID < 1 then return false end
-        if self.db.preferredArmor and item.subclassID ~= tier then return false end
+        local tier=self:GetArmorSubclass()
+        if type(item.subclassID)~='number' or item.subclassID<1 or item.subclassID>tier then return false,'Type d’armure incompatible' end
+        if self.db.preferredArmor and item.subclassID~=tier then return false,'Préférence d’armure stricte' end
     end
     return true
 end
-
--- Conservative effect detection: we can see text, not accurately simulate a proc.
--- When a worn item has an unmodelled use/equip effect, automatic gear
--- replacement stops rather than pretending its value is zero.
-function AA:HasUnmodelledEffect(link)
-    if not link or not C_TooltipInfo or type(C_TooltipInfo.GetHyperlink) ~= "function" then
-        return false
+function AA:IsReserveItem(id)
+    return id and self.db and self.db.reserveItems and self.db.reserveItems[tostring(id)]==true
+end
+function AA:ToggleReserve(id)
+    if self.busy then return end
+    local key=tostring(id);self.db.reserveItems[key]=not self.db.reserveItems[key] or nil
+    self:InvalidatePreview();self:SetStatus('Réserve du second rôle mise à jour.')
+end
+local function clone(t) local r={} for k,v in pairs(t) do r[k]=v end return r end
+local function same(a,b) return (a and a.key)==(b and b.key) end
+function AA:ReadLoadout()
+    local worn={};for _,def in ipairs(self.slots) do worn[def.slot]=self:ReadWorn(def.slot) end;return worn
+end
+function AA:CollectBagItems()
+    local items,missing={},0
+    for bag=0,(NUM_BAG_SLOTS or 4) do
+        for slot=1,(self:Call(C_Container and C_Container.GetContainerNumSlots,bag) or 0) do
+            local item,loading=self:ReadBagItem(bag,slot)
+            if loading then missing=missing+1 end
+            if item and locationToSlots[item.equipLoc] then items[#items+1]=item end
+        end
     end
-    local ok, data = pcall(C_TooltipInfo.GetHyperlink, link)
-    if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return false end
-    for _, line in ipairs(data.lines) do
-        local text = type(line) == "table" and (line.leftText or line.text)
-        if type(text) == "string" then
-            -- An explicit Equip/Use tooltip effect, not ordinary stat bonuses.
-            local clean = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-            if clean:match("^Equip:") or clean:match("^Use:") or
-                clean:match("^Équipé%s*:") or clean:match("^Equipé%s*:") or
-                clean:match("^Utiliser%s*:") or clean:match("^Utilisation%s*:") or
-                clean:match("^Set%s*:") or clean:match("^Ensemble%s*:") then
-                return true
+    return items,missing
+end
+function AA:CheckLoadout(loadout)
+    local unique,keys,ids={},{},{}
+    for slot,item in pairs(loadout) do
+        if item.link then
+            if keys[item.key] then return false,'Même exemplaire utilisé deux fois' end
+            keys[item.key]=true
+            local a=self:ReadAssessment(item)
+            if a.uniqueKey then
+                unique[a.uniqueKey]=(unique[a.uniqueKey] or 0)+1
+                if unique[a.uniqueKey]>(a.uniqueLimit or 1) then return false,'Limite d’objets uniques' end
+            end
+            if ids[item.itemID] and (not a.uniqueKnown or not ids[item.itemID].uniqueKnown) then return false,'Unicité à vérifier' end
+            ids[item.itemID]=a
+        end
+    end
+    local main,off=loadout[16],loadout[17]
+    if main and main.equipLoc=='INVTYPE_2HWEAPON' and off and off.link then return false,'Deux mains incompatibles avec la main gauche' end
+    if off and off.link then
+        if not main or not main.link then return false,'Arme principale requise' end
+        if off.classID==2 then
+            local can=self:Call(C_Spell and C_Spell.IsSpellKnown,674)
+            if can==nil then can=self:Call(IsPlayerSpell,674) end
+            if can~=true then
+                -- Existing dual-wield demonstrates capability when the API is absent.
+                local current=self:ReadWorn(17)
+                if can==false or current.classID~=2 then return false,'Ambidextrie non confirmée' end
             end
         end
     end
-    return false
+    return true
 end
-
-local function Paired(slot)
-    if slot==11 then return 12 elseif slot==12 then return 11 end
-    if slot==13 then return 14 elseif slot==14 then return 13 end
-end
-
-function AA:ScoreCandidate(item, slot)
-    if weaponSlots[slot] then
-        return self:ScoreWeapon(item.link, item.level, slot)
-    end
-    local subclass = bodyArmor[slot] and item.subclassID or nil
-    return self:ScoreItem(item.link, item.level, subclass)
-end
-
-function AA:EvaluateItemForSlot(item, slot, equipped)
-    if not self:IsCandidateAllowed(item,slot) then return nil end
-    local worn = equipped or self:ReadWorn(slot)
-    if worn.link and not worn.level then return nil end
-    if worn.link and self.db.protectSpecialEffects
-        and self:HasUnmodelledEffect(worn.link) then return nil end
-    if (slot == 11 or slot == 12 or slot == 13 or slot == 14) then
-        local paired = Paired(slot)
-        local other = self:ReadWorn(paired)
-        if item.itemID and other.itemID == item.itemID then return nil end
-    end
-    local score = self:ScoreCandidate(item,slot)
-    local subclass
-    if worn.link and bodyArmor[slot] then subclass=select(7,C_Item.GetItemInfoInstant(worn.link)) end
-    local oldScore
-    if worn.link then
-        oldScore = weaponSlots[slot] and self:ScoreWeapon(worn.link, worn.level, slot)
-            or self:ScoreItem(worn.link, worn.level, subclass)
-    else
-        oldScore = 0
-    end
-    -- If either item's stat data is missing, don't compare incomparable
-    -- scales (weighted score vs ilvl): fall back to ilvl on BOTH sides.
-    if worn.link and self.db then
-        local profile = self:GetProfile()
-        local usesWeights = profile.weights and
-            ((weaponSlots[slot] and self.db.smartWeapons) or self.db.scoringMode == "role")
-        if usesWeights and C_Item and type(C_Item.GetItemStats) == "function" then
-            local aOK, aStats = pcall(C_Item.GetItemStats, item.link)
-            local bOK, bStats = pcall(C_Item.GetItemStats, worn.link)
-            if not aOK or not bOK or type(aStats) ~= "table" or not next(aStats)
-                or type(bStats) ~= "table" or not next(bStats) then
-                score, oldScore = item.level, worn.level
+function AA:CompareLoadouts(before,after,changed,context)
+    local valid,reason=self:CheckLoadout(after)
+    if not valid then return nil,reason end
+    local scoreBefore,scoreAfter=0,0
+    local warnings={};local details={}
+    for slot,new in pairs(after) do
+        local old=before[slot]
+        if changed[slot] then
+            local a,oldStats=self:ScoreData(old,slot,context)
+            local b,newStats=self:ScoreData(new,slot,context)
+            if a==nil or b==nil then return nil,(a==nil and oldStats or newStats) end
+            scoreBefore=scoreBefore+a;scoreAfter=scoreAfter+b
+            if changed[slot] then
+                details[slot]={before=a,after=b,oldStats=oldStats,stats=newStats}
+                local oa,na=self:ReadAssessment(old),self:ReadAssessment(new)
+                if self.db.protectSpecialEffects and (#oa.effects>0 or #na.effects>0) then warnings.effects='Effet spécial à confirmer' end
+                if context.scoring.uncertain then warnings.role='Rôle incertain : vérifier les statistiques' end
+                if context.scoring.weapon=='dagger' and slot==16 and new.subclassID~=15 then warnings.weapon='Type d’arme à confirmer pour les techniques' end
+                if oa.speed and na.speed and math.abs(oa.speed-na.speed)>math.max(.5,oa.speed*.3) then warnings.speed='Vitesse d’arme différente : vérifier les techniques' end
             end
         end
     end
-    if not score or not oldScore or score <= oldScore + .001 then return nil end
-    return {slot=slot,link=item.link,itemID=item.itemID,level=item.level,
-        currentLevel=worn.level or 0,score=score,currentScore=oldScore,
-        gain=score-oldScore,wornLink=worn.link,bag=item.bag,bagSlot=item.bagSlot}
-end
-
-function AA:FindUpgrades()
-    local candidates, result, unknown = {}, {}, 0
-    local equipped={}
-    for _, def in ipairs(self.slots) do
-        local worn=self:ReadWorn(def.slot)
-        if worn.link and not worn.level then unknown=unknown+1; self:RequestItem(worn.link) end
-        equipped[def.slot]=worn
+    if self.db.protectSpecialEffects then
+        local oldSets,newSets,thresholds={},{},{}
+        for slot,old in pairs(before) do
+            if old.setID then
+                oldSets[old.setID]=(oldSets[old.setID] or 0)+1
+                for _,n in ipairs(self:ReadAssessment(old).sets) do thresholds[old.setID]=thresholds[old.setID] or {};thresholds[old.setID][n]=true end
+            elseif changed[slot] and #self:ReadAssessment(old).sets>0 then warnings.set='Bonus d’ensemble à confirmer' end
+            local new=after[slot];if new and new.setID then newSets[new.setID]=(newSets[new.setID] or 0)+1 end
+        end
+        for id,n in pairs(oldSets) do
+            if (newSets[id] or 0)<n then
+                if not thresholds[id] then warnings.set='Bonus d’ensemble à confirmer'
+                else for threshold in pairs(thresholds[id]) do if n>=threshold and (newSets[id] or 0)<threshold then warnings.set='Perte d’un bonus d’ensemble actif' end end end
+            end
+        end
     end
-    for bag=0,4 do
-        local size=C_Container.GetContainerNumSlots(bag) or 0
-        for bagSlot=1,size do
-            local item,loading=self:ReadBagItem(bag,bagSlot)
-            if loading then unknown=unknown+1 end
-            if item and locationToSlots[item.equipLoc] then
-                for _,slot in ipairs(locationToSlots[item.equipLoc]) do
-                    local job=self:EvaluateItemForSlot(item,slot,equipped[slot])
-                    if job then candidates[#candidates+1]=job end
+    local ordered={};for _,key in ipairs({'role','effects','set','weapon','speed'}) do if warnings[key] then ordered[#ordered+1]=warnings[key] end end
+    return scoreAfter-scoreBefore,table.concat(ordered,' · '),details
+end
+function AA:MakePlan(options)
+    options=options or {}
+    local before=self:ReadLoadout();local bags,missing=self:CollectBagItems()
+    if options.extra then bags[#bags+1]=options.extra end
+    local context={scoring=self:GetScoringContext()};local final=clone(before)
+    local result,review,blocked={},{},{}
+    local incomplete,viable={},{}
+    local groups={{1},{2},{3},{15},{5},{9},{10},{6},{7},{8},{11,12},{13,14},{16,17},{18}}
+    for gi,slots in ipairs(groups) do
+        local candidates={}
+        for _,slot in ipairs(slots) do
+            local pool={final[slot]}
+            local locked=self:IsSlotProtected(slot) or self:IsReserveItem(final[slot].itemID) or (options.automatic and self:IsManualHold(slot))
+            if not locked and (not options.weaponsOnly or slot==16 or slot==17) then
+                local all={};for _,item in ipairs(bags) do all[#all+1]=item end
+                for _,other in ipairs(slots) do if other~=slot and final[other].link and not self:IsSlotProtected(other) and not self:IsManualHold(other) then all[#all+1]=final[other] end end
+                for _,item in ipairs(all) do
+                    local fits=false
+                    for _,possible in ipairs(locationToSlots[item.equipLoc] or {}) do if possible==slot then fits=true end end
+                    if fits then
+                        local allowed,why=self:IsCandidateAllowed(item,slot,options)
+                        if allowed then pool[#pool+1]=item elseif item.bag then blocked[item.key]=why end
+                    end
                 end
+                if slot==17 and options.allWeapons then pool[#pool+1]={empty=true,link=false,key='empty:17',wornSlot=17} end
             end
+            candidates[slot]=pool
+        end
+        local best,bestReview,bestGain,reviewGain=nil,nil,.001,.001
+        local function evaluate(a,b)
+            local trial=clone(final);trial[slots[1]]=a;if slots[2] then trial[slots[2]]=b end
+            local changed={};for _,slot in ipairs(slots) do if not same(trial[slot],final[slot]) then changed[slot]=true end end
+            if not next(changed) then return end
+            local gain,why,details=self:CompareLoadouts(final,trial,changed,context)
+            if not gain then
+                if why=='loading' or why=='weaponData' then
+                    for slot in pairs(changed) do
+                        for _,item in ipairs({final[slot],trial[slot]}) do
+                            local score,err=self:ScoreData(item,slot,context)
+                            if not score and (err=='loading' or err=='weaponData') then incomplete[item.key]=true end
+                        end
+                    end
+                end
+                for slot in pairs(changed) do if trial[slot].key then blocked[trial[slot].key]=why end end
+                return
+            end
+            for slot in pairs(changed) do viable[trial[slot].key]=true end
+            if gain<=.001 then return end
+            local plan={loadout=trial,changed=changed,gain=gain,reason=why,details=details,group=gi}
+            if why~='' then if gain>reviewGain then bestReview=plan;reviewGain=gain end
+            elseif gain>bestGain then best=plan;bestGain=gain end
+        end
+        for _,a in ipairs(candidates[slots[1]]) do
+            if slots[2] then for _,b in ipairs(candidates[slots[2]]) do evaluate(a,b) end else evaluate(a) end
+        end
+        local chosen=best or bestReview
+        if chosen then
+            for slot in pairs(chosen.changed) do
+                local item,old=chosen.loadout[slot],final[slot]
+                local d=chosen.details[slot]
+                local job={slot=slot,link=item.link,itemID=item.itemID,level=item.level or 0,currentLevel=old.level or 0,
+                    score=d.after,currentScore=d.before,gain=d.after-d.before,groupGain=chosen.gain,group=gi,
+                    wornLink=old.link,bag=item.bag,bagSlot=item.bagSlot,fromSlot=item.wornSlot,item=item,
+                    stats=d.stats,oldStats=d.oldStats,reason=chosen.reason~='' and chosen.reason or nil,
+                    requiresReview=chosen.reason~='',allWeapons=options.allWeapons}
+                if best then result[slot]=job else review[slot]=job end
+            end
+            if best then final=chosen.loadout end
         end
     end
-    table.sort(candidates,function(a,b)
-        if a.gain~=b.gain then return a.gain>b.gain end
-        if a.level~=b.level then return a.level>b.level end
-        return a.slot<b.slot
-    end)
-    local usedBagItems, usedPairIDs={},{}
-    for _,candidate in ipairs(candidates) do
-        local key=candidate.bag..":"..candidate.bagSlot
-        local pair=(candidate.slot==11 or candidate.slot==12) and "ring" or
-            ((candidate.slot==13 or candidate.slot==14) and "trinket" or nil)
-        local pairKey=pair and (pair..":"..tostring(candidate.itemID))
-        if not result[candidate.slot] and not usedBagItems[key] and
-            (not pairKey or not usedPairIDs[pairKey]) then
-            result[candidate.slot]=candidate
-            usedBagItems[key]=true
-            if pairKey then usedPairIDs[pairKey]=true end
-        end
-    end
-    return result,unknown
+    for _ in pairs(incomplete) do missing=missing+1 end
+    for key in pairs(viable) do blocked[key]=nil end
+    self.lastAssessment={before=before,after=final,review=review,blocked=blocked,missing=missing,scoring=context.scoring,options=options}
+    return result,missing,review
 end
-
+function AA:FindUpgrades(options) return self:MakePlan(options) end
+function AA:ScoreCandidate(item,slot) return self:ScoreData(item,slot) end
+function AA:EvaluateItemForSlot(item,slot,equipped)
+    if not self:IsCandidateAllowed(item,slot) then return nil end
+    local before=self:ReadLoadout();if equipped then before[slot]=equipped end
+    local after=clone(before);after[slot]=item
+    local gain,reason,details=self:CompareLoadouts(before,after,{[slot]=true},{scoring=self:GetScoringContext()})
+    if not gain or gain<=.001 then return nil end
+    local d=details[slot]
+    return {slot=slot,link=item.link,itemID=item.itemID,item=item,level=item.level,currentLevel=before[slot].level or 0,
+        score=d.after,currentScore=d.before,gain=gain,wornLink=before[slot].link,bag=item.bag,bagSlot=item.bagSlot,
+        stats=d.stats,oldStats=d.oldStats,requiresReview=reason~='',reason=reason~='' and reason or nil}
+end
 function AA:EvaluateQuestReward(link)
-    local item=self:BuildItem(link)
-    if not item or not locationToSlots[item.equipLoc] then return nil end
-    local best
-    for _,slot in ipairs(locationToSlots[item.equipLoc]) do
-        local offer=self:EvaluateItemForSlot(item,slot)
-        if offer and (not best or offer.gain>best.gain) then best=offer end
+    local item=self:BuildItem(link);if not item then return nil end
+    item.key='quest:'..(item.identity or link)
+    local saved=self.lastAssessment
+    local baseline=self:MakePlan()
+    local offers=self:MakePlan({extra=item})
+    local function total(plan)
+        local value,seen=0,{}
+        for _,job in pairs(plan) do if not seen[job.group] then seen[job.group]=true;value=value+job.groupGain end end
+        return value
     end
+    local incremental=total(offers)-total(baseline)
+    local best
+    if incremental>.001 then
+        for _,offer in pairs(offers) do if offer.item.key==item.key then best=offer;best.gain=incremental;break end end
+    end
+    self.lastAssessment=saved
     return best
 end

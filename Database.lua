@@ -1,11 +1,14 @@
 local addonName, AA = ...
 local defaults = {
-    language = "en", -- The add-on defaults to English even on a French WoW client.
+    language = "en",
+    specialization = "auto",
+    adviceOnly = false,
+    reduceMotion = false,
+    reserveItems = {},
     quickMode = true,
     skipUnboundBoE = true,
     scoringMode = "role", -- New installs use role weighting; existing choices are preserved.
     preferredArmor = true,
-    profile = "auto", -- en absence de spécialisation, profil neutre.
     locked = {},
     autoQuestRewards = true,
     autoLevelUp = true,
@@ -43,6 +46,15 @@ function AA:LoadDatabase()
         end
     end
     self.db = AutoArmorDB.characters[charKey]
+    -- Remove the retired user configuration; keep language, protections, history
+    -- and notification position. No external scoring provider is consulted.
+    for _,key in ipairs({"profile","scoreSource","pawnScale","playStyle","customWeights","statCaps","roleSets"}) do
+        self.db[key]=nil
+        AutoArmorDB[key]=nil
+    end
+    for _, key in ipairs({"reserveItems"}) do
+        if type(self.db[key]) ~= "table" then self.db[key] = {} end
+    end
     for key, value in pairs(defaults) do
         if key ~= "locked" and key ~= "protectedItems" and key ~= "protectedNames" and key ~= "manualOverrides" and key ~= "history" and type(self.db[key]) ~= type(value) then self.db[key] = value end
     end
@@ -55,7 +67,7 @@ function AA:LoadDatabase()
         self.db.toastX, self.db.toastY = nil, nil
     end
     if self.db.language ~= "en" and self.db.language ~= "fr" then self.db.language = "en" end
-    if self.db.profile ~= "auto" and type(self.db.profile) ~= "string" then self.db.profile = "auto" end
+    if not self:IsValidSpecialization(self.db.specialization) then self.db.specialization="auto" end
     if self.db.scoringMode ~= "ilvl" and self.db.scoringMode ~= "role" then self.db.scoringMode = "ilvl" end
     -- Migration v0.5.1 : activer une fois les nouvelles optimisations d'armes
     -- sur les personnages existants de v0.5.0. Après cette migration, un choix
@@ -75,13 +87,15 @@ function AA:LoadDatabase()
 end
 
 function AA:SetLocked(slot, value)
+    if self.busy then return end
     self.db.locked[slot] = not not value
     self:InvalidatePreview()
     self:SetStatus("Emplacement protégé / déprotégé. Réanalyse si besoin.")
 end
 
 function AA:SetOption(key, value)
-    if self.busy then return end
+    if self.busy or defaults[key]==nil then return end
+    if key=="specialization" and not self:IsValidSpecialization(value) then return end
     self.db[key] = value
     self:InvalidatePreview()
     self:SetStatus("Paramètre enregistré.")

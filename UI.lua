@@ -48,42 +48,49 @@ local function StyleBronzeButton(button)
     bg:SetColorTexture(unpack(THEME.bg))
     button.AABtnBg = bg
     local borders = {}
-    local function edge(point1, relative1, point2, relative2, width, height)
-        local t = button:CreateTexture(nil, "BORDER")
+    local function edge(point1, relative1, point2, relative2, vertical)
+        local t = button:CreateTexture(nil, "OVERLAY", nil, 6)
         t:SetColorTexture(unpack(THEME.edge))
         t:SetPoint(point1, button, relative1)
         t:SetPoint(point2, button, relative2)
-        if width then t:SetWidth(width) end
-        if height then t:SetHeight(height) end
-        borders[#borders+1] = t
+        borders[#borders+1]={texture=t,vertical=vertical}
         return t
     end
-    edge("TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT", nil, 1)
-    edge("BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", nil, 1)
-    edge("TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT", 1, nil)
-    edge("TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT", 1, nil)
-    local shine = button:CreateTexture(nil, "ARTWORK")
-    shine:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-    shine:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -1)
-    shine:SetHeight(math.max(8, math.floor(button:GetHeight() * 0.45)))
-    shine:SetColorTexture(1, .95, .80, .08)
+    edge("TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT", false)
+    edge("BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", false)
+    edge("TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT", true)
+    edge("TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT", true)
+    -- Solid full-height fill: no half-button shine. Keep a visible two-pixel
+    -- outline even when the window or the client UI uses a fractional scale.
+    local function sizeBorders()
+        local scale=button:GetEffectiveScale() or 1
+        local thickness=2/math.max(.1,scale)
+        for _,entry in ipairs(borders) do
+            if entry.vertical then entry.texture:SetWidth(thickness) else entry.texture:SetHeight(thickness) end
+        end
+    end
+    button.AABorders=borders
+    button:HookScript("OnShow",sizeBorders)
+    button:HookScript("OnSizeChanged",sizeBorders)
+    sizeBorders()
     local label = button:GetFontString()
     if label then label:SetTextColor(unpack(THEME.text)) end
     local function refresh(state)
-        if state == "hover" then
+        if state == "hover" or (state == "normal" and button.AAActive) then
             bg:SetColorTexture(.18, .155, .105, .98)
             if label then label:SetTextColor(unpack(THEME.textHi)) end
-            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edgeHi)) end
+            for _, entry in ipairs(borders) do entry.texture:SetColorTexture(unpack(THEME.edgeHi)) end
         elseif state == "down" then
             bg:SetColorTexture(.13, .105, .075, .98)
             if label then label:SetTextColor(unpack(THEME.textHi)) end
-            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edgeHi)) end
+            for _, entry in ipairs(borders) do entry.texture:SetColorTexture(unpack(THEME.edgeHi)) end
         else
             bg:SetColorTexture(unpack(THEME.bg))
             if label then label:SetTextColor(unpack(THEME.text)) end
-            for _, t in ipairs(borders) do t:SetColorTexture(unpack(THEME.edge)) end
+            for _, entry in ipairs(borders) do entry.texture:SetColorTexture(unpack(THEME.edge)) end
         end
     end
+    button.AARefreshStyle=function(active) button.AAActive=active;refresh("normal") end
     button:HookScript("OnEnter", function() refresh("hover") end)
     button:HookScript("OnLeave", function() refresh("normal") end)
     button:HookScript("OnMouseDown", function() refresh("down") end)
@@ -161,46 +168,75 @@ local function SetTooltip(button, link, explanation)
     end
 end
 
-local function Selector(parent, x, y, w, provider, onSelect)
-    local chosen = Button(parent, "Choisir...", w, 24, x, y, function() end)
-    local menu = CreateFrame("Frame", nil, chosen)
-    menu:SetSize(w, 10)
-    menu:SetPoint("TOPLEFT", chosen, "BOTTOMLEFT", 0, -3)
-    menu:SetFrameStrata("FULLSCREEN_DIALOG")
-    menu:SetFrameLevel(100)
-    local bg = menu:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(.09, .08, .07, .98)
-    menu:Hide()
-    local options = {}
-    chosen:SetScript("OnClick", function()
-        if menu:IsShown() then menu:Hide(); return end
-        local items = provider()
-        local count = math.min(#items, 12)
-        menu:SetHeight(count * 25 + 6)
-        for i = 1, math.max(count, #options) do
-            if i <= count then
-                if not options[i] then
-                    options[i] = Button(menu, "", w - 8, 23, 4, -(i-1)*25-3, function() end)
-                end
-                local choice = items[i]
-                options[i]:SetText(choice.text)
-                options[i]:SetScript("OnClick", function()
-                    menu:Hide()
-                    onSelect(choice.value)
-                end)
-                options[i]:Show()
-            elseif options[i] then options[i]:Hide() end
+function AA:CloseChoiceMenu()
+    if self.openChoiceMenu then self.openChoiceMenu:Hide() end
+end
+
+local function Selector(parent,name,x,y,w,provider,onSelect)
+    local chosen=Button(parent,"Choisir...",w,28,x,y,function() end)
+    local caption=chosen:GetFontString()
+    caption:ClearAllPoints();caption:SetPoint("LEFT",chosen,"LEFT",9,0);caption:SetWidth(w-38);caption:SetJustifyH("LEFT")
+    local arrow=chosen:CreateTexture(nil,"OVERLAY")
+    arrow:SetSize(20,20);arrow:SetPoint("RIGHT",chosen,"RIGHT",-5,0)
+    arrow:SetTexture("Interface/Buttons/UI-ScrollBar-ScrollDownButton-Up")
+    local dismiss=CreateFrame("Button",nil,UIParent)
+    dismiss:SetAllPoints(UIParent);dismiss:SetFrameStrata("FULLSCREEN_DIALOG");dismiss:SetFrameLevel(150);dismiss:Hide()
+    local menu=CreateFrame("Frame",name,UIParent)
+    menu:SetFrameStrata("FULLSCREEN_DIALOG");menu:SetFrameLevel(151);menu:SetClampedToScreen(true);menu:EnableMouse(true)
+    ApplyBronzePanel(menu,true);menu:Hide();menu.rows={}
+    chosen.menu=menu;menu.dismiss=dismiss
+    if UISpecialFrames then table.insert(UISpecialFrames,name) end
+    menu:SetScript("OnHide",function()
+        dismiss:Hide();chosen.AARefreshStyle(false)
+        if AA.openChoiceMenu==menu then AA.openChoiceMenu=nil end
+    end)
+    dismiss:SetScript("OnClick",function() menu:Hide() end)
+    chosen:HookScript("OnHide",function() menu:Hide() end)
+    chosen:SetScript("OnClick",function()
+        if menu:IsShown() then menu:Hide();return end
+        AA:CloseChoiceMenu()
+        local items=provider()
+        menu:SetScale(chosen:GetEffectiveScale()/(UIParent:GetEffectiveScale() or 1))
+        menu:SetSize(w,8+#items*30);menu:ClearAllPoints();menu:SetPoint("TOPLEFT",chosen,"BOTTOMLEFT",0,-3)
+        for i,choice in ipairs(items) do
+            local row=menu.rows[i]
+            if not row then row=Button(menu,"",w-8,28,4,-4-(i-1)*30,function() end);menu.rows[i]=row end
+            row:SetText(choice.text);row.AARefreshStyle(choice.selected);row:Show()
+            row:SetScript("OnClick",function() menu:Hide();onSelect(choice.value) end)
         end
-        menu:Show()
+        for i=#items+1,#menu.rows do menu.rows[i]:Hide() end
+        AA.openChoiceMenu=menu;dismiss:Show();menu:Show();chosen.AARefreshStyle(true)
     end)
     return chosen
+end
+
+function AA:OpenTextWindow(title,text)
+    local f=self.textWindow
+    if not f then
+        f=CreateFrame("Frame","AutoArmorTextWindow",UIParent,"BasicFrameTemplateWithInset")
+        self.textWindow=f
+        f:SetSize(620,420);f:SetPoint("CENTER");f:SetFrameStrata("FULLSCREEN_DIALOG");f:EnableMouse(true)
+        f:SetClampedToScreen(true);f:SetScale(math.min(1,math.max(.65,(UIParent:GetHeight()-30)/420)))
+        ApplyBronzePanel(f)
+        if UISpecialFrames then table.insert(UISpecialFrames,"AutoArmorTextWindow") end
+        local scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT",f,"TOPLEFT",16,-38);scroll:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT",-34,60)
+        local edit=CreateFrame("EditBox",nil,scroll);f.edit=edit
+        edit:SetMultiLine(true);edit:SetFontObject("ChatFontNormal");edit:SetSize(556,290)
+        edit:SetAutoFocus(false);edit:SetMaxLetters(50000);scroll:SetScrollChild(edit)
+        edit:SetScript("OnEscapePressed",function() f:Hide() end)
+        Label(f,"GameFontHighlightSmall","Ctrl+A, puis Ctrl+C pour copier le diagnostic.",16,-375,570)
+    end
+    f.TitleText:SetText(self:Tr(title));f.edit:SetText(text or "")
+    f:Show();f.edit:SetFocus();f.edit:HighlightText()
 end
 
 function AA:CreateUI()
     if self.window then return end
     local f = CreateFrame("Frame", "AutoArmorOptionsWindow", UIParent, "BasicFrameTemplateWithInset")
     f:SetSize(740, 700)
+    f:SetClampedToScreen(true)
+    f:SetScale(math.min(1, math.max(.65, (UIParent:GetHeight()-30)/700)))
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true)
@@ -230,18 +266,28 @@ function AA:CreateUI()
     self.window = f
     self.pages = pages
     function self:ShowPage(id)
+        AA:CloseChoiceMenu()
         for key, page in pairs(pages) do page:SetShown(key == id) end
+        if not AA.db.reduceMotion and pages[id].CreateAnimationGroup then
+            local page=pages[id]
+            if not page.fade then
+                page.fade=page:CreateAnimationGroup()
+                local a=page.fade:CreateAnimation("Alpha");a:SetFromAlpha(.65);a:SetToAlpha(1);a:SetDuration(.13)
+            end
+            page.fade:Stop();page.fade:Play()
+        end
         f.activeTab = id
         AA:RefreshUI()
     end
     function self:ShowOptionsTab()
         self:ShowPage("settings")
     end
-    Button(f, "Équipement", 135, 28, 16, -38, function() AA:ShowPage("gear") end)
-    Button(f, "Paramètres", 135, 28, 158, -38, function() AA:ShowPage("settings") end)
-    Button(f, "Objets protégés", 135, 28, 300, -38, function() AA:ShowPage("protection") end)
-    Button(f, "Historique", 135, 28, 442, -38, function() AA:ShowPage("history") end)
-    Button(f, "Diagnostic", 135, 28, 584, -38, function()
+    f.nav={}
+    f.nav.gear=Button(f, "Équipement", 135, 28, 16, -38, function() AA:ShowPage("gear") end)
+    f.nav.settings=Button(f, "Paramètres", 135, 28, 158, -38, function() AA:ShowPage("settings") end)
+    f.nav.protection=Button(f, "Objets protégés", 135, 28, 300, -38, function() AA:ShowPage("protection") end)
+    f.nav.history=Button(f, "Historique", 135, 28, 442, -38, function() AA:ShowPage("history") end)
+    f.nav.diagnostic=Button(f, "Diagnostic", 135, 28, 584, -38, function()
         AA:ShowPage("diagnostic")
         AA:AnalyzeDiagnostics()
     end)
@@ -252,144 +298,102 @@ function AA:CreateUI()
     divider:SetHeight(1)
 
     local gear = pages.gear
-    Label(gear, "GameFontHighlightSmall", "Compare les objets de tes sacs et choisis ceux que tu veux porter.", 8, -4, 672)
-    f.scanButton = Button(gear, "Vérifier mes sacs", 166, 27, 10, -31, function() AA:Analyze() end)
-    f.applyButton = Button(gear, "Équiper la sélection", 190, 27, 185, -31, function() AA:EquipSelected(false) end)
-    f.quickButton = Button(gear, "Optimiser", 165, 27, 385, -31, function() AA:EquipSelected(true) end)
-    f.undoButton = Button(gear, "Annuler", 108, 27, 558, -31, function() AA:UndoLast() end)
-    Label(gear, "GameFontNormalSmall", "EMPLACEMENT", 12, -80, 115)
-    Label(gear, "GameFontNormalSmall", "ÉQUIPÉ", 138, -80, 100)
-    Label(gear, "GameFontNormalSmall", "AMÉLIORATION", 242, -80, 280)
-    Label(gear, "GameFontNormalSmall", "OK", 561, -80, 48)
-    Label(gear, "GameFontNormalSmall", "VERROU", 612, -80, 75)
-
-    local scroll = CreateFrame("ScrollFrame", "AutoArmorGearScroll05", gear, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", gear, "TOPLEFT", 6, -100)
-    scroll:SetPoint("BOTTOMRIGHT", gear, "BOTTOMRIGHT", -26, 7)
-    local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(675, #self.slots * 30 + 6)
-    scroll:SetScrollChild(content)
-    f.rows = {}
-    for i, def in ipairs(self.slots) do
-        local row = CreateFrame("Frame", nil, content)
-        row:SetSize(675, 30)
-        row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i-1)*30)
-        if i % 2 == 0 then
-            local shade = row:CreateTexture(nil, "BACKGROUND")
-            shade:SetAllPoints()
-            shade:SetColorTexture(.16, .12, .08, .38)
-        end
-        Label(row, "GameFontHighlightSmall", def.name, 8, -7, 117)
-        row.worn = Label(row, "GameFontHighlightSmall", "—", 135, -7, 90)
-        row.wornTip = CreateFrame("Button", nil, row)
-        row.wornTip:SetPoint("TOPLEFT", row, "TOPLEFT", 131, -2)
-        row.wornTip:SetSize(96, 26)
-        row.offer = Label(row, "GameFontHighlightSmall", "—", 238, -7, 305)
-        row.offerTip = CreateFrame("Button", nil, row)
-        row.offerTip:SetPoint("TOPLEFT", row, "TOPLEFT", 233, -2)
-        row.offerTip:SetSize(305, 26)
-        row.select = Check(row, "", 548, -3, function(yes)
-            AA.selected[def.slot] = yes
+    f.gearSummary=Label(gear,"GameFontHighlightSmall","",10,-8,665)
+    f.scanButton=Button(gear,"Vérifier mes sacs",155,27,10,-37,function() AA:Analyze() end)
+    f.applyButton=Button(gear,"Équiper la sélection",172,27,174,-37,function() AA:EquipSelected(false) end)
+    f.quickButton=Button(gear,"Optimiser",140,27,355,-37,function() AA:EquipSelected(true) end)
+    f.undoButton=Button(gear,"Annuler",100,27,504,-37,function() AA:UndoLast() end)
+    f.reviewButton=Button(gear,"À confirmer",150,25,10,-72,function() AA:ConfirmReviewed() end)
+    Label(gear,"GameFontHighlightSmall","Survole un objet pour comprendre la recommandation.",174,-79,490)
+    Label(gear,"GameFontNormalSmall","EMPLACEMENT",10,-111,95)
+    Label(gear,"GameFontNormalSmall","ÉQUIPÉ",111,-111,190)
+    Label(gear,"GameFontNormalSmall","AMÉLIORATION",333,-111,200)
+    Label(gear,"GameFontNormalSmall","OK",586,-111,30)
+    Label(gear,"GameFontNormalSmall","VERROU",625,-111,56)
+    local scroll=CreateFrame("ScrollFrame","AutoArmorGearScroll08",gear,"UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT",gear,"TOPLEFT",6,-132);scroll:SetPoint("BOTTOMRIGHT",gear,"BOTTOMRIGHT",-26,7)
+    local content=CreateFrame("Frame",nil,scroll);content:SetSize(675,#self.slots*48);scroll:SetScrollChild(content)
+    f.rows={}
+    for i,def in ipairs(self.slots) do
+        local row=CreateFrame("Frame",nil,content);row:SetSize(675,48);row:SetPoint("TOPLEFT",content,"TOPLEFT",0,-(i-1)*48)
+        if i%2==0 then local shade=row:CreateTexture(nil,"BACKGROUND");shade:SetAllPoints();shade:SetColorTexture(.16,.12,.08,.38) end
+        Label(row,"GameFontHighlightSmall",def.name,4,-15,94)
+        row.wornIcon=row:CreateTexture(nil,"ARTWORK");row.wornIcon:SetSize(24,24);row.wornIcon:SetPoint("TOPLEFT",row,"TOPLEFT",102,-10)
+        row.worn=Label(row,"GameFontHighlightSmall","",132,-8,184)
+        row.worn:SetHeight(34)
+        row.wornTip=CreateFrame("Button",nil,row);row.wornTip:SetPoint("TOPLEFT",row,"TOPLEFT",100,-2);row.wornTip:SetSize(216,44)
+        row.offer=Label(row,"GameFontHighlightSmall","",327,-7,240)
+        row.offer:SetHeight(18);row.offer:SetWordWrap(false)
+        row.state=Label(row,"GameFontDisableSmall","",327,-28,240)
+        row.offerTip=CreateFrame("Button",nil,row);row.offerTip:SetPoint("TOPLEFT",row,"TOPLEFT",325,-2);row.offerTip:SetSize(244,44)
+        row.select=Check(row,"",578,-10,function(yes)
+            local selected=AA.preview and AA.preview[def.slot]
+            if selected then for slot,offer in pairs(AA.preview) do if offer.group==selected.group then AA.selected[slot]=yes end end end
             AA:RefreshUI()
         end)
-        row.lock = Check(row, "", 615, -3, function(yes) AA:SetLocked(def.slot, yes) end)
-        f.rows[def.slot] = row
+        row.lock=Check(row,"",627,-10,function(yes) AA:SetLocked(def.slot,yes) end)
+        f.rows[def.slot]=row
     end
 
-    local settings = pages.settings
-    local settingsScroll = CreateFrame("ScrollFrame", "AutoArmorSettingsScroll05", settings, "UIPanelScrollFrameTemplate")
-    -- The language selector remains visible even when settings are scrolled.
-    Label(settings, "GameFontNormalSmall", "Langue de l'interface :", 14, -8, 140)
-    f.languagePicker = Selector(settings, 164, -4, 166, function()
-        return {
-            {text="English", value="en"},
-            {text="Français", value="fr"},
-        }
-    end, function(code) AA:SetLanguage(code) end)
-    settingsScroll:SetPoint("TOPLEFT", settings, "TOPLEFT", 0, -40)
-    settingsScroll:SetPoint("BOTTOMRIGHT", settings, "BOTTOMRIGHT", -23, 0)
-    local settingsBody = CreateFrame("Frame", nil, settingsScroll)
-    ApplyBronzePanel(settingsBody, true)
-    settingsBody:SetSize(670, 1395)
-    settingsScroll:SetScrollChild(settingsBody)
-    Label(settingsBody, "GameFontNormalLarge", "Comment choisir mes équipements", 14, -8, 600)
-    f.playerInfo = Label(settingsBody, "GameFontHighlightSmall", "", 16, -42, 660)
-    Label(settingsBody, "GameFontNormalSmall", "Mon profil :", 16, -75, 130)
-    f.profilePicker = Selector(settingsBody, 156, -71, 345, function()
-        local items = {{text=AA:Tr("Automatique (selon mon personnage)"), value="auto"}}
-        for _, p in ipairs(AA.profiles[AA:GetClass()] or {}) do
-            items[#items+1] = {text=AA:Tr(p.label), value=p.id}
+    local settings=pages.settings
+    Label(settings,"GameFontNormalSmall","Langue de l'interface :",14,-16,150)
+    f.languagePicker=Selector(settings,"AutoArmorLanguageMenu",170,-8,200,function()
+        return {{text="Français",value="fr",selected=AA:GetLanguage()=="fr"},{text="English",value="en",selected=AA:GetLanguage()=="en"}}
+    end,function(value) AA:SetLanguage(value) end)
+    local sections={}
+    for _,id in ipairs({"calculation","automation","display"}) do
+        local panel=CreateFrame("Frame",nil,settings);panel:SetPoint("TOPLEFT",settings,"TOPLEFT",6,-86);panel:SetSize(680,475);panel:Hide();sections[id]=panel
+    end
+    local sectionButtons={}
+    local function section(id)
+        AA:CloseChoiceMenu()
+        for k,panel in pairs(sections) do panel:SetShown(k==id) end
+        for k,button in pairs(sectionButtons) do button.AARefreshStyle(k==id) end
+    end
+    sectionButtons.calculation=Button(settings,"Choix des équipements",210,28,10,-47,function() section("calculation") end)
+    sectionButtons.automation=Button(settings,"Automatismes et protections",244,28,228,-47,function() section("automation") end)
+    sectionButtons.display=Button(settings,"Affichage",210,28,480,-47,function() section("display") end)
+    local calculation=sections.calculation
+    Label(calculation,"GameFontNormal","Spécialisation souhaitée",14,-14,650)
+    f.specializationPicker=Selector(calculation,"AutoArmorSpecializationMenu",14,-43,360,function()
+        local choices={{text=AA:Tr("Automatique (selon mes talents)"),value="auto",selected=AA.db.specialization=="auto"}}
+        for _,spec in ipairs(AA:GetSpecializationChoices()) do
+            choices[#choices+1]={text=AA:Tr(spec.label),value=spec.id,selected=AA.db.specialization==spec.id}
         end
-        return items
-    end, function(id) AA:SetOption("profile", id) end)
-    f.ilvlCheck = Check(settingsBody, "Choisir le niveau d'objet le plus élevé", 14, -117,
-        function(v) if v then AA:SetOption("scoringMode", "ilvl") end end)
-    f.roleCheck = Check(settingsBody, "Tenir compte des statistiques de mon rôle", 14, -151,
-        function(v) if v then AA:SetOption("scoringMode", "role") end end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "Sans rôle défini, AutoArmor compare simplement les niveaux d'objet.\n" ..
-        "Tu peux aussi sélectionner un profil toi-même.", 46, -188, 645)
-    Label(settingsBody, "GameFontNormalLarge", "Mes protections", 14, -250, 620)
-    f.boeCheck = Check(settingsBody, "Ne pas rendre mes objets liés en les équipant", 14, -289,
-        function(v) AA:SetOption("skipUnboundBoE", v) end)
-    f.armorCheck = Check(settingsBody, "Choisir le type d'armure adapté à ma classe", 14, -327,
-        function(v) AA:SetOption("preferredArmor", v) end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "Le type d'armure disponible évolue avec ton niveau.\n" ..
-        "Tu peux protéger chaque emplacement dans l'onglet Équipement.",
-        45, -369, 652)
-    Label(settingsBody, "GameFontNormalLarge", "Optimisation automatique", 14, -418, 620)
-    f.autoQuestCheck = Check(settingsBody, "Après une quête qui donne de l'équipement", 14, -455,
-        function(v) AA:SetOption("autoQuestRewards", v) end)
-    f.autoLevelCheck = Check(settingsBody, "Quand je gagne un niveau", 14, -488,
-        function(v) AA:SetOption("autoLevelUp", v) end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "AutoArmor ne choisit pas tes récompenses de quête à ta place.\n" ..
-        "Il vérifie les pièces obtenues et équipe les améliorations hors combat.\n" ..
-        "Tes emplacements protégés restent inchangés.", 46, -526, 655)
-
-    Label(settingsBody, "GameFontNormalLarge", "Armes et recommandations", 14, -615, 630)
-    f.weaponsCheck = Check(settingsBody, "Comparer aussi les armes, boucliers et armes à distance", 14, -649,
-        function(v) AA:SetOption("includeWeapons", v) end)
-    f.autoWeaponsCheck = Check(settingsBody, "Autoriser les armes après quête ou montée de niveau", 14, -687,
-        function(v) AA:SetOption("autoWeapons", v) end)
-    f.smartWeaponsCheck = Check(settingsBody, "Adapter les armes à ma classe et à mon rôle", 14, -724,
-        function(v) AA:SetOption("smartWeapons", v) end)
-    f.effectCheck = Check(settingsBody, "Préserver les objets aux effets spéciaux non évaluables", 14, -815,
-        function(v) AA:SetOption("protectSpecialEffects", v) end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "Activé par défaut. Sans rôle connu : comparaison de l'ilvl.\n" ..
-        "Configuration conservée (1 ou 2 mains, bouclier, distance).\n" ..
-        "En Tank, un bouclier déjà porté reste en place jusqu'à ton choix.", 48, -763, 615)
-    f.weaponPlanButton = Button(settingsBody, "Examiner la configuration d'armes", 292, 27, 14, -853,
-        function() AA:ReviewWeaponSetup() end)
-    f.adviceCheck = Check(settingsBody, "Conseiller une récompense avant de rendre une quête", 14, -895,
-        function(v) AA:SetOption("questAdvice", v) end)
-    f.notifyCheck = Check(settingsBody, "Afficher une petite notification après optimisation", 14, -935,
-        function(v) AA:SetOption("showNotifications", v) end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "Pour protéger une pièce précise, ouvre l'onglet Objets protégés.\n" ..
-        "La restauration de la dernière optimisation se trouve dans Équipement.", 48, -975, 610)
-
-    Label(settingsBody, "GameFontNormalLarge", "Respect de mes changements manuels", 14, -1035, 630)
-    f.manualCheck = Check(settingsBody, "Ne pas remplacer automatiquement une pièce changée par moi", 14, -1070,
-        function(v) AA:SetOption("respectManualChanges", v) end)
-    f.manualInfo = Label(settingsBody, "GameFontHighlightSmall", "", 48, -1106, 620)
-    f.manualReset = Button(settingsBody, "Réautoriser tous les emplacements", 265, 26, 14, -1142,
-        function()
-            AA:ReleaseManualOverrides()
-            AA:SetStatus("Tous les emplacements peuvent de nouveau etre optimises automatiquement.")
-        end)
-    Label(settingsBody, "GameFontNormalLarge", "Position de la notification", 14, -1191, 630)
-    f.toastMoveButton = Button(settingsBody, "Déplacer", 132, 27, 14, -1228,
-        function()
-            if AA.toastPositioning then AA:EndToastPositioning() else AA:BeginToastPositioning() end
-        end)
-    f.toastResetButton = Button(settingsBody, "Position par défaut", 185, 27, 160, -1228,
-        function() AA:ResetToastPosition() end)
-    Label(settingsBody, "GameFontHighlightSmall",
-        "Glisse la notification avec la souris, puis clic droit dessus pour terminer.\n" ..
-        "Ta position est conservée, meme apres une reconnexion.", 16, -1268, 645)
+        return choices
+    end,function(value) AA:SetOption("specialization",value) end)
+    f.playerInfo=Label(calculation,"GameFontHighlightSmall","",14,-87,650)
+    f.specializationInfo=Label(calculation,"GameFontHighlightSmall","",14,-115,630)
+    f.ilvlCheck=Check(calculation,"Choisir le niveau d'objet le plus élevé",12,-176,function() AA:SetOption("scoringMode","ilvl") end)
+    f.roleCheck=Check(calculation,"Tenir compte des statistiques de la spécialisation souhaitée",12,-214,function() AA:SetOption("scoringMode","role") end)
+    f.armorCheck=Check(calculation,"Conserver strictement le type d’armure de ma classe",12,-266,function(v) AA:SetOption("preferredArmor",v) end)
+    Label(calculation,"GameFontHighlightSmall","Désactive cette préférence pour comparer aussi les armures plus légères utilisables.",44,-300,610)
+    Label(calculation,"GameFontNormalSmall","Une décision expliquée",14,-358,640)
+    Label(calculation,"GameFontHighlightSmall","Survole une proposition pour voir les statistiques comparées. Les effets incertains restent à confirmer.",14,-389,630)
+    local auto=sections.automation
+    f.autoQuestCheck=Check(auto,"Après une quête qui donne de l'équipement",12,-7,function(v) AA:SetOption("autoQuestRewards",v) end)
+    f.autoLevelCheck=Check(auto,"Quand je gagne un niveau",12,-42,function(v) AA:SetOption("autoLevelUp",v) end)
+    f.weaponsCheck=Check(auto,"Comparer aussi les armes, boucliers et armes à distance",12,-77,function(v) AA:SetOption("includeWeapons",v) end)
+    f.autoWeaponsCheck=Check(auto,"Autoriser les armes après quête ou montée de niveau",12,-112,function(v) AA:SetOption("autoWeapons",v) end)
+    f.smartWeaponsCheck=Check(auto,"Comparer les armes par statistiques (sinon : niveau d’objet)",12,-147,function(v) AA:SetOption("smartWeapons",v) end)
+    f.boeCheck=Check(auto,"Ne pas rendre mes objets liés en les équipant",12,-182,function(v) AA:SetOption("skipUnboundBoE",v) end)
+    f.effectCheck=Check(auto,"Préserver les objets aux effets spéciaux non évaluables",12,-217,function(v) AA:SetOption("protectSpecialEffects",v) end)
+    f.manualCheck=Check(auto,"Ne pas remplacer automatiquement une pièce changée par moi",12,-252,function(v) AA:SetOption("respectManualChanges",v) end)
+    f.manualInfo=Label(auto,"GameFontHighlightSmall","",44,-289,610)
+    f.manualReset=Button(auto,"Réautoriser tous les emplacements",290,26,14,-337,function() AA:ReleaseManualOverrides();AA:RefreshUI() end)
+    f.weaponPlanButton=Button(auto,"Examiner la configuration d'armes",315,26,322,-337,function() AA:ReviewWeaponSetup() end)
+    f.adviceOnlyCheck=Check(auto,"Mode conseil : le bouton AA montre les propositions",12,-386,function(v) AA:SetOption("adviceOnly",v) end)
+    Label(auto,"GameFontHighlightSmall","Les automatismes restent distincts. Désactive-les pour un essai sans équipement automatique.",44,-421,610)
+    local display=sections.display
+    f.notifyCheck=Check(display,"Afficher une petite notification après optimisation",12,-7,function(v) AA:SetOption("showNotifications",v) end)
+    f.motionCheck=Check(display,"Réduire les animations",12,-45,function(v) AA:SetOption("reduceMotion",v) end)
+    f.adviceCheck=Check(display,"Conseiller une récompense avant de rendre une quête",12,-83,function(v) AA:SetOption("questAdvice",v) end)
+    Label(display,"GameFontHighlightSmall","Les notifications affichent le résultat confirmé et permettent d’annuler.",14,-133,650)
+    Button(display,"Tester l’animation",205,28,14,-171,function() AA:PreviewToast() end)
+    f.toastMoveButton=Button(display,"Déplacer",170,28,234,-171,function() if AA.toastPositioning then AA:EndToastPositioning() else AA:BeginToastPositioning() end end)
+    f.toastResetButton=Button(display,"Position par défaut",225,28,420,-171,function() AA:ResetToastPosition() end)
+    Label(display,"GameFontHighlightSmall","Glisse la notification avec la souris, puis clic droit pour terminer.",14,-217,650)
+    section("calculation")
 
     local protect = pages.protection
     Label(protect, "GameFontNormalLarge", "Choisir les objets à ne jamais remplacer", 12, -8, 640)
@@ -407,7 +411,7 @@ function AA:CreateUI()
         end
         local label=row:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
         label:SetPoint("LEFT",row,"LEFT",8,0)
-        label:SetWidth(475);label:SetJustifyH("LEFT")
+        label:SetWidth(325);label:SetJustifyH("LEFT")
         local toggle=CreateFrame("Button",nil,row)
         toggle:SetSize(155,27)
         toggle:SetPoint("RIGHT",row,"RIGHT",-5,0)
@@ -418,6 +422,7 @@ function AA:CreateUI()
         toggle:SetFontString(caption)
         StyleBronzeButton(toggle)
         row.label=label; row.toggle=toggle
+        row.reserve=Button(row,"Second rôle",130,27,335,-5,function() end)
         f.protectRows[i]=row
     end
     f.protectPrev=Button(protect,"Précédent",118,25,11,-539,function()
@@ -474,7 +479,10 @@ function AA:CreateUI()
         "Le diagnostic compare les pièces de tes sacs aux réglages actuels. Il ne change aucun objet.", 10, -37, 660)
     f.diagnosticScan = Button(diagnostic, "Actualiser l'analyse", 195, 26, 10, -64,
         function() AA:AnalyzeDiagnostics() end)
-    f.diagnosticSummary = Label(diagnostic, "GameFontHighlightSmall", "", 217, -70, 440)
+    f.diagnosticSummary = Label(diagnostic, "GameFontHighlightSmall", "", 217, -70, 270)
+    Button(diagnostic,"Copier le diagnostic",175,26,493,-64,function()
+        AA:AnalyzeDiagnostics();AA:OpenTextWindow("Diagnostic AutoArmor",AA:BuildDiagnosticText())
+    end)
     f.diagnosticRows = {}
     for i = 1, 9 do
         local row = CreateFrame("Frame", nil, diagnostic)
@@ -509,7 +517,8 @@ end
 function AA:RefreshUI()
     local f = self.window
     if not f or not self.db then return end
-    local p = self:GetProfile()
+    local p = self:GetScoringContext()
+    for key,button in pairs(f.nav or {}) do button.AARefreshStyle(key==f.activeTab) end
     local className = select(1, UnitClass("player")) or "?"
     if self:GetLanguage() == "en" then
         local classToken = select(2, UnitClass("player"))
@@ -517,9 +526,13 @@ function AA:RefreshUI()
             PRIEST="Priest",MAGE="Mage",WARLOCK="Warlock",SHAMAN="Shaman",DRUID="Druid"})[classToken] or className
     end
     f.playerInfo:SetText(self:TF("%s • niveau %s • %s", className, tostring(UnitLevel("player") or "?"), self:Tr(p.label)))
-    f.profilePicker:SetText((self.db.profile == "auto" and self:Tr("Auto : ") or "") .. self:Tr(p.label))
-    f.languagePicker:SetText(self:GetLanguage() == "fr" and "Français" or "English")
-    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. self:Tr("Mon équipement")) end
+    f.languagePicker:SetText(self:GetLanguage()=="fr" and "Français" or "English")
+    f.specializationPicker:SetText(self.db.specialization=="auto" and self:Tr("Automatique (selon mes talents)") or self:Tr(p.label))
+    f.specializationPicker:SetEnabled(not self.busy)
+    local help=self.db.specialization~="auto" and "Ton choix reste prioritaire, même si tu joues une autre spécialisation dans tes talents." or
+        (p.uncertain and "Détection incertaine : choisis la spécialisation que tu souhaites jouer." or "Détection du jeu ou arbre de talents dominant. Tu peux choisir une autre spécialisation.")
+    f.specializationInfo:SetText(self:Tr(help))
+    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. self:Tr(({gear="Mon équipement",settings="Paramètres",protection="Objets protégés",history="Historique",diagnostic="Diagnostic"})[f.activeTab] or "Mon équipement")) end
     f.statusText:SetText(self.status)
     f.statusText:SetTextColor(unpack(self.statusColor))
     f.quickButton:SetEnabled(not self.busy)
@@ -531,25 +544,36 @@ function AA:RefreshUI()
         local row = f.rows[slot]
         local locked = self:IsSlotProtected(slot)
         local offer = self.preview and self.preview[slot]
+        local review = self.review and self.review[slot]
         local worn = self:ReadWorn(slot)
-        row.worn:SetText(worn.level and ("ilvl " .. worn.level) or (worn.link and "?" or self:Tr("Vide")))
+        row.worn:SetText(worn.name or self:Tr(worn.link and "Données en chargement" or "Vide"))
+        row.wornIcon:SetTexture(worn.icon)
+        row.state:SetText(offer and (offer.requiresReview and self:Tr("À confirmer") or self:Tr("Amélioration estimée")) or "")
         SetTooltip(row.wornTip, worn.link)
-        SetTooltip(row.offerTip, offer and offer.link or nil, offer and self:ExplainUpgrade(offer) or nil)
+        SetTooltip(row.offerTip, (offer or review) and (offer or review).link or nil, (offer or review) and self:ExplainUpgrade(offer or review) or nil)
         row.lock:SetChecked(not not self.db.locked[slot])
+        row.lock:SetEnabled(not self.busy)
         row.select:SetChecked((offer and self.selected[slot]) or false)
         row.select:SetEnabled(not locked and not self.busy and offer ~= nil)
         if locked then row.offer:SetText("|cffffbd78" .. self:Tr("Protégé") .. "|r")
+        elseif self:IsReserveItem(worn.itemID) then row.offer:SetText("|cffffbd78"..self:Tr("Réservé").."|r")
+        elseif review then row.offer:SetText(review.item.name or self:Tr("Vide"));row.state:SetText("|cffffc46b"..self:Tr("À confirmer").."|r")
         elseif not self.preview then row.offer:SetText("|cffaaaaaa" .. self:Tr("Clique sur Vérifier mes sacs") .. "|r")
         elseif offer then
-            local smartWeapon = self:IsWeaponSlot(slot) and self.db.smartWeapons and p.weights
-            local bonus = (self.db.scoringMode == "role" or smartWeapon) and p.weights
-                and ("score +" .. string.format("%.1f", offer.gain))
-                or ("ilvl " .. offer.level .. " (+" .. (offer.level - offer.currentLevel) .. ")")
-            row.offer:SetText(offer.link .. " |cff63dca0" .. bonus .. "|r")
+            row.offer:SetText(offer.item.name or self:Tr("Vide"))
+            row.state:SetText("|cff63dca0"..self:Tr("Amélioration estimée").."|r")
             if self.selected[slot] then count = count + 1 end
         else row.offer:SetText("|cffaaaaaa" .. self:Tr("Aucune amélioration") .. "|r") end
     end
     f.applyButton:SetEnabled(count > 0 and not self.busy)
+    local reviews=0;for _ in pairs(self.review or {}) do reviews=reviews+1 end
+    f.reviewButton:SetEnabled(reviews>0 and not self.busy)
+    f.reviewButton:SetText(self:Tr("À confirmer")..(reviews>0 and " ("..reviews..")" or ""))
+    local confidence=p.source=="manual" and "Spécialisation choisie" or (p.uncertain and "Statistiques à vérifier" or "Calcul automatique")
+    f.gearSummary:SetText(self:Tr(p.label).." · "..self:Tr(confidence))
+    f.motionCheck:SetChecked(self.db.reduceMotion);f.adviceOnlyCheck:SetChecked(self.db.adviceOnly)
+    f.ilvlCheck:SetEnabled(not self.busy)
+    f.roleCheck:SetEnabled(not self.busy)
     f.ilvlCheck:SetChecked(self.db.scoringMode == "ilvl")
     f.roleCheck:SetChecked(self.db.scoringMode == "role")
     f.boeCheck:SetChecked(self.db.skipUnboundBoE)
@@ -565,7 +589,7 @@ function AA:RefreshUI()
     f.manualCheck:SetChecked(self.db.respectManualChanges)
     local hold = self:ManualHoldCount()
     f.manualInfo:SetText(self:TF("%d emplacement(s) en pause pour les automatismes.\nUn clic sur Optimiser permet de reprendre la main.", hold))
-    f.manualReset:SetEnabled(hold > 0)
+    f.manualReset:SetEnabled(hold > 0 and not self.busy)
     f.weaponPlanButton:SetEnabled(not self.busy and self.db.includeWeapons)
     f.toastMoveButton:SetText(self:Tr(self.toastPositioning and "Terminer" or "Déplacer"))
     if f.activeTab == "protection" then self:RefreshProtectionPage() end
@@ -590,6 +614,8 @@ function AA:RefreshProtectionPage()
                 AA:ToggleItemProtection(entry.id,entry.name)
             end)
             SetTooltip(row.toggle,entry.link)
+            row.reserve:SetText(self:Tr(self:IsReserveItem(entry.id) and "Réservé" or "Second rôle"))
+            row.reserve:SetScript("OnClick",function() AA:ToggleReserve(entry.id) end)
         else row:Hide() end
     end
     f.protectPrev:SetEnabled(self.protectionPage>1)
@@ -601,7 +627,9 @@ end
 local function SimpleItemName(link)
     if type(link) ~= "string" then return AA:Tr("Vide") end
     local name = link:match("%[(.-)%]") or link
-    if #name > 32 then name = name:sub(1, 29) .. "..." end
+    local index=0;local cut
+    for pos in name:gmatch('()[%z\1-\127\194-\244][\128-\191]*') do index=index+1;if index==30 then cut=pos;break end end
+    if cut then name=name:sub(1,cut-1)..'…' end
     return name
 end
 
@@ -623,7 +651,7 @@ function AA:RefreshHistoryPage()
             row.heading:SetText(self:HistorySlotName(entry.slot) .. " | " ..
                 self:HistorySourceName(entry.reason) .. " | " .. when)
             row.detail:SetText(SimpleItemName(entry.before) .. "  ->  " .. SimpleItemName(entry.after))
-            row.restore:SetEnabled(type(entry.before) == "string" and not self.busy)
+            row.restore:SetEnabled(not self.busy)
             row.restore:SetScript("OnClick", function()
                 AA:RestoreHistoryEntry(entry.historyIndex, entry.changeIndex)
             end)
@@ -649,7 +677,6 @@ function AA:RefreshDiagnosticPage()
         if entry then
             row:Show()
             local name = entry.label or self:Tr("Objet")
-            if #name > 46 then name = name:sub(1, 43) .. "..." end
             row.title:SetText(name .. "  |  ilvl " .. (entry.level or "?"))
             local where = entry.slot and self:HistorySlotName(entry.slot) or self:Tr("Équipement")
             row.detail:SetText("|cffffbf73" .. self:Tr(entry.reason) .. "|r  |  " .. where)

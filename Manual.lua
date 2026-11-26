@@ -9,17 +9,8 @@ local function Now()
     return (GetTime and GetTime()) or 0
 end
 
-function AA:EquipmentLinksMatch(expected, actual)
-    if expected == actual then return true end
-    if type(expected) ~= "string" or type(actual) ~= "string" then return false end
-    -- Les liens des sacs et ceux de la fiche peuvent etre formes differemment
-    -- pour un meme objet. La comparaison par ID evite des protections erronees.
-    local a, b = expected:match("item:(%d+)"), actual:match("item:(%d+)")
-    return a ~= nil and a == b
-end
-
 function AA:TrackEquipmentRequest(slot, link)
-    if not slot or not link then return end
+    if not slot or link == nil then return end
     pending[slot] = {link = link, expires = Now() + 8}
 end
 

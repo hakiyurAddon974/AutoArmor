@@ -73,7 +73,7 @@ function AA:AutoOptimize(reason, isRetry)
         self:SetStatus("Optimisation en attente de la fin du combat.", 1, .75, .4)
         return
     end
-    local offers, unknown = self:FindUpgrades()
+    local offers, unknown = self:FindUpgrades({automatic=true})
     local jobs = {}
     for _, def in ipairs(self.slots) do
         if offers[def.slot] and not self:IsSlotProtected(def.slot)
@@ -88,7 +88,7 @@ function AA:AutoOptimize(reason, isRetry)
             self:SetStatus("Certains objets ne sont pas encore chargés : nouvel essai en cours.")
         end
     else
-        self:StartEquipmentQueue(jobs,"auto")
+        self:StartEquipmentQueue(jobs,reason)
     end
     -- Les données des objets reçus peuvent arriver légèrement en retard.
     -- Un SEUL nouvel essai, et uniquement si ce déclenchement a vu des

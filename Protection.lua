@@ -17,7 +17,7 @@ function AA:IsSlotProtected(slot)
 end
 
 function AA:ToggleItemProtection(id,name)
-    if not self.db or not id then return end
+    if self.busy or not self.db or not id then return end
     local key=tostring(id)
     if self.db.protectedItems[key] then
         self.db.protectedItems[key]=nil
