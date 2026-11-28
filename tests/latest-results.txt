@@ -1,0 +1,97 @@
+Syntax: 23 Lua files passed
+PASS unknown mage uses class stats, not high ilvl strength
+PASS ambiguous hybrid requires role confirmation
+PASS caster physical DPS cannot beat spell stats
+PASS Forever feral includes equipped weapon DPS
+PASS hunter uses ranged weapon DPS only
+PASS missing stats are blocked, no ilvl fallback
+PASS missing tooltip is not treated as safe
+PASS static Equip attack power is evaluated, not doubled
+PASS unknown use and proc effects require confirmation
+PASS active set threshold loss needs confirmation
+PASS set preserved by replacement remains safe
+PASS paired weapons choose 99 main and 100 off instead of greedy 100 main
+PASS two copies of a nonunique ring can both be equipped
+PASS unique category limit applies across different IDs
+PASS same link without known uniqueness cannot fill two slots
+PASS exact variant keeps enchant, ignores display level
+PASS locks, protected IDs and second-role reserve are respected
+PASS manual hold blocks automatic scan but permits explicit optimization
+PASS adaptive armor can compare lighter usable equipment
+PASS transaction remains busy until observed result
+PASS partial rejection records verified changes and honest failure
+PASS total rejection creates no history or undo
+PASS undo restores previous variant and original empty slots
+PASS plan revalidation refuses changed equipment and locks
+PASS bag movement finds same physical item again
+PASS combat and occupied cursor prevent equipment calls
+PASS history restore of unloaded old item never clears a slot
+PASS Forever talent dominance detected, staged edits withheld
+PASS two-handed setup compares entire pair and needs explicit confirmation
+PASS notification outcome and animation cleanup, reduced motion
+PASS UI creates every page and refreshes in FR and EN
+PASS paired partial swap retains undo for a displaced source slot
+PASS diagnostics use relevant slots rather than unrelated incompatibility
+PASS weapon hit proc and timed Equip bonus are never labelled static
+PASS loading counter counts items, not paired permutations
+PASS quest gain excludes upgrades already available in bags
+PASS reserved equipped item is never replaced and bag BoE is skipped
+PASS uncommitted proposal does not execute until popup acceptance
+PASS preview becomes stale after bags or talents change, without auto-scan
+PASS new UI labels and combined reasons translate in English
+PASS temporarily locked bag item is explained and never picked up
+PASS automatic trigger respects opt-out and manual holds
+PASS login initializes UI and embedded buttons without equipping
+PASS old settings migrate without losing language protections or toast position
+PASS automatic talent selection ignores retired profile and external scoring
+PASS settings contain no profile selectors or external-provider controls
+PASS notification status badge renders above icon for every result
+PASS language dropdown switches FR and EN and closes cleanly
+PASS specialization picker lists only class choices and persists the intention
+PASS manual specialization changes actual recommendations independently of talents
+PASS shared button style uses solid fill and scale-aware full borders
+PASS only one selector is open and class-invalid saved spec resets safely
+PASS global optimizer finds two individually weaker set pieces
+PASS known set bonus is counted once and can outweigh raw stat loss
+PASS global unique category conflict is solved across distant slots
+PASS unknown gained set bonus remains a review alternative
+PASS set tooltip conflicts never receive an invented value
+PASS equal gear does not churn between copies or slots
+PASS client rating conversion changes with level without hardcoded caps
+PASS rank-specific committed talent modifies stat conversion
+PASS manual other specialization never borrows active talent bonuses
+PASS uncommitted talent edits do not affect equipment weights
+PASS conditional talent text cannot become a permanent stat multiplier
+PASS Forever Mental Dexterity hotfix corrects stale beta text by rank
+PASS French permanent effects and set stats are recognized conservatively
+PASS on-use duration is explained without making the effect automatic
+PASS owned item comparison never invents a second ring copy
+PASS item comparison considers both weapon hands without equipping
+PASS future item suggestions are useful and never auto-reserved
+PASS alternate specialization hints respect class and protection
+PASS settings changes invalidate pending confirmation
+PASS automatic disabled weapons cannot break a grouped plan
+PASS long analysis yields and cancellation prevents results and equips
+PASS combat cancels a running analysis before equipment
+PASS three primary tabs and both intended specialization menus work
+PASS new installs are manual and existing automation choices are preserved
+PASS class specialization matrix: WARRIOR
+PASS class specialization matrix: PALADIN
+PASS class specialization matrix: HUNTER
+PASS class specialization matrix: ROGUE
+PASS class specialization matrix: PRIEST
+PASS class specialization matrix: MAGE
+PASS class specialization matrix: WARLOCK
+PASS class specialization matrix: SHAMAN
+PASS class specialization matrix: DRUID
+PASS small global searches agree with exhaustive enumeration
+BENCH: 200 items / 155719 evaluations / 104 slices / max 16.80 ms / CPU 0.381 s (mock client)
+PASS 200-item scan completes cooperatively with bounded frontier
+PASS quest panel explains already-owned better rewards and pending effects
+PASS item comparison shortcut is optional and requires both modifiers
+PASS planned set comparison retains the complete combination explanation
+PASS primary button rescans when no proposed changes are selected
+PASS primary stat amplification and conversion are independent of talent enumeration order
+BENCH: 200 set pieces / 50 sets / 249 slices / max 14.73 ms / CPU 0.854 s (mock client)
+PASS 200 pieces from 50 sets preserve the best complete set
+RESULT: 93 regression scenarios passed (simulated APIs, Lua 5.4)

@@ -70,7 +70,7 @@ function AA:IsCandidateAllowed(item,slot,options)
     local possible=false
     for _,s in ipairs(locationToSlots[item.equipLoc] or {}) do if slot==s then possible=true end end
     if not possible then return false,'Emplacement incompatible' end
-    if item.minLevel>(UnitLevel('player') or 1) then return false,'Niveau insuffisant' end
+    if not options.ignoreLevel and item.minLevel>(UnitLevel('player') or 1) then return false,'Niveau insuffisant' end
     if not options.ignoreSlot and self:IsSlotProtected(slot) then return false,'Emplacement protégé' end
     if self:IsItemProtected(item.itemID) or (self.IsReserveItem and self:IsReserveItem(item.itemID)) then return false,'Objet protégé ou réservé' end
     if self.db.skipUnboundBoE and item.bindType==2 and item.isBound~=true then return false,'Objet non lié' end
@@ -120,6 +120,7 @@ function AA:CollectBagItems()
             local item,loading=self:ReadBagItem(bag,slot)
             if loading then missing=missing+1 end
             if item and locationToSlots[item.equipLoc] then items[#items+1]=item end
+            if self.planTask then self:OptimizerCheckpoint(self.planTask.preflight) end
         end
     end
     return items,missing
@@ -154,122 +155,6 @@ function AA:CheckLoadout(loadout)
         end
     end
     return true
-end
-function AA:CompareLoadouts(before,after,changed,context)
-    local valid,reason=self:CheckLoadout(after)
-    if not valid then return nil,reason end
-    local scoreBefore,scoreAfter=0,0
-    local warnings={};local details={}
-    for slot,new in pairs(after) do
-        local old=before[slot]
-        if changed[slot] then
-            local a,oldStats=self:ScoreData(old,slot,context)
-            local b,newStats=self:ScoreData(new,slot,context)
-            if a==nil or b==nil then return nil,(a==nil and oldStats or newStats) end
-            scoreBefore=scoreBefore+a;scoreAfter=scoreAfter+b
-            if changed[slot] then
-                details[slot]={before=a,after=b,oldStats=oldStats,stats=newStats}
-                local oa,na=self:ReadAssessment(old),self:ReadAssessment(new)
-                if self.db.protectSpecialEffects and (#oa.effects>0 or #na.effects>0) then warnings.effects='Effet spécial à confirmer' end
-                if context.scoring.uncertain then warnings.role='Rôle incertain : vérifier les statistiques' end
-                if context.scoring.weapon=='dagger' and slot==16 and new.subclassID~=15 then warnings.weapon='Type d’arme à confirmer pour les techniques' end
-                if oa.speed and na.speed and math.abs(oa.speed-na.speed)>math.max(.5,oa.speed*.3) then warnings.speed='Vitesse d’arme différente : vérifier les techniques' end
-            end
-        end
-    end
-    if self.db.protectSpecialEffects then
-        local oldSets,newSets,thresholds={},{},{}
-        for slot,old in pairs(before) do
-            if old.setID then
-                oldSets[old.setID]=(oldSets[old.setID] or 0)+1
-                for _,n in ipairs(self:ReadAssessment(old).sets) do thresholds[old.setID]=thresholds[old.setID] or {};thresholds[old.setID][n]=true end
-            elseif changed[slot] and #self:ReadAssessment(old).sets>0 then warnings.set='Bonus d’ensemble à confirmer' end
-            local new=after[slot];if new and new.setID then newSets[new.setID]=(newSets[new.setID] or 0)+1 end
-        end
-        for id,n in pairs(oldSets) do
-            if (newSets[id] or 0)<n then
-                if not thresholds[id] then warnings.set='Bonus d’ensemble à confirmer'
-                else for threshold in pairs(thresholds[id]) do if n>=threshold and (newSets[id] or 0)<threshold then warnings.set='Perte d’un bonus d’ensemble actif' end end end
-            end
-        end
-    end
-    local ordered={};for _,key in ipairs({'role','effects','set','weapon','speed'}) do if warnings[key] then ordered[#ordered+1]=warnings[key] end end
-    return scoreAfter-scoreBefore,table.concat(ordered,' · '),details
-end
-function AA:MakePlan(options)
-    options=options or {}
-    local before=self:ReadLoadout();local bags,missing=self:CollectBagItems()
-    if options.extra then bags[#bags+1]=options.extra end
-    local context={scoring=self:GetScoringContext()};local final=clone(before)
-    local result,review,blocked={},{},{}
-    local incomplete,viable={},{}
-    local groups={{1},{2},{3},{15},{5},{9},{10},{6},{7},{8},{11,12},{13,14},{16,17},{18}}
-    for gi,slots in ipairs(groups) do
-        local candidates={}
-        for _,slot in ipairs(slots) do
-            local pool={final[slot]}
-            local locked=self:IsSlotProtected(slot) or self:IsReserveItem(final[slot].itemID) or (options.automatic and self:IsManualHold(slot))
-            if not locked and (not options.weaponsOnly or slot==16 or slot==17) then
-                local all={};for _,item in ipairs(bags) do all[#all+1]=item end
-                for _,other in ipairs(slots) do if other~=slot and final[other].link and not self:IsSlotProtected(other) and not self:IsManualHold(other) then all[#all+1]=final[other] end end
-                for _,item in ipairs(all) do
-                    local fits=false
-                    for _,possible in ipairs(locationToSlots[item.equipLoc] or {}) do if possible==slot then fits=true end end
-                    if fits then
-                        local allowed,why=self:IsCandidateAllowed(item,slot,options)
-                        if allowed then pool[#pool+1]=item elseif item.bag then blocked[item.key]=why end
-                    end
-                end
-                if slot==17 and options.allWeapons then pool[#pool+1]={empty=true,link=false,key='empty:17',wornSlot=17} end
-            end
-            candidates[slot]=pool
-        end
-        local best,bestReview,bestGain,reviewGain=nil,nil,.001,.001
-        local function evaluate(a,b)
-            local trial=clone(final);trial[slots[1]]=a;if slots[2] then trial[slots[2]]=b end
-            local changed={};for _,slot in ipairs(slots) do if not same(trial[slot],final[slot]) then changed[slot]=true end end
-            if not next(changed) then return end
-            local gain,why,details=self:CompareLoadouts(final,trial,changed,context)
-            if not gain then
-                if why=='loading' or why=='weaponData' then
-                    for slot in pairs(changed) do
-                        for _,item in ipairs({final[slot],trial[slot]}) do
-                            local score,err=self:ScoreData(item,slot,context)
-                            if not score and (err=='loading' or err=='weaponData') then incomplete[item.key]=true end
-                        end
-                    end
-                end
-                for slot in pairs(changed) do if trial[slot].key then blocked[trial[slot].key]=why end end
-                return
-            end
-            for slot in pairs(changed) do viable[trial[slot].key]=true end
-            if gain<=.001 then return end
-            local plan={loadout=trial,changed=changed,gain=gain,reason=why,details=details,group=gi}
-            if why~='' then if gain>reviewGain then bestReview=plan;reviewGain=gain end
-            elseif gain>bestGain then best=plan;bestGain=gain end
-        end
-        for _,a in ipairs(candidates[slots[1]]) do
-            if slots[2] then for _,b in ipairs(candidates[slots[2]]) do evaluate(a,b) end else evaluate(a) end
-        end
-        local chosen=best or bestReview
-        if chosen then
-            for slot in pairs(chosen.changed) do
-                local item,old=chosen.loadout[slot],final[slot]
-                local d=chosen.details[slot]
-                local job={slot=slot,link=item.link,itemID=item.itemID,level=item.level or 0,currentLevel=old.level or 0,
-                    score=d.after,currentScore=d.before,gain=d.after-d.before,groupGain=chosen.gain,group=gi,
-                    wornLink=old.link,bag=item.bag,bagSlot=item.bagSlot,fromSlot=item.wornSlot,item=item,
-                    stats=d.stats,oldStats=d.oldStats,reason=chosen.reason~='' and chosen.reason or nil,
-                    requiresReview=chosen.reason~='',allWeapons=options.allWeapons}
-                if best then result[slot]=job else review[slot]=job end
-            end
-            if best then final=chosen.loadout end
-        end
-    end
-    for _ in pairs(incomplete) do missing=missing+1 end
-    for key in pairs(viable) do blocked[key]=nil end
-    self.lastAssessment={before=before,after=final,review=review,blocked=blocked,missing=missing,scoring=context.scoring,options=options}
-    return result,missing,review
 end
 function AA:FindUpgrades(options) return self:MakePlan(options) end
 function AA:ScoreCandidate(item,slot) return self:ScoreData(item,slot) end

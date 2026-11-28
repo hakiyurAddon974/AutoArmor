@@ -92,11 +92,19 @@ function AA:PlaceItem(item,slot)
     return C_Item and type(C_Item.EquipItemByName)=='function' and pcall(C_Item.EquipItemByName,item.link,slot)
 end
 function AA:StartEquipmentQueue(jobs,reason,confirmed)
-    if self.busy then return end
+    if self.busy or self.scanning then return end
     if self:IsCombatBlocked() then self:SetStatus('Impossible d’équiper pendant le combat.');self:Notify(self.status);return end
     if self:Call(CursorHasItem) then self:SetStatus('Repose l’objet tenu par le curseur.');self:Notify(self.status);return end
     if #jobs==0 then
         self:SetStatus('Aucune amélioration évaluée à équiper.');if reason=='manual' then self:NotifyOutcome({changes={},failed={},empty=true}) end;return
+    end
+    local grouped={}
+    for _,job in ipairs(jobs) do
+        if job.settingsRevision and job.settingsRevision~=(self.settingsRevision or 0) then self:SetStatus('Paramètres modifiés : relance l’analyse.');return end
+        if job.group and job.groupSize then grouped[job.group]=(grouped[job.group] or 0)+1 end
+    end
+    for _,job in ipairs(jobs) do
+        if job.groupSize and grouped[job.group]~=job.groupSize then self:SetStatus('Cette combinaison doit être appliquée entièrement.');return end
     end
     local before=self:ReadLoadout();local after={};for slot,item in pairs(before) do after[slot]=item end
     local changed={}
@@ -129,6 +137,7 @@ function AA:StartEquipmentQueue(jobs,reason,confirmed)
     local touched={}
     for _,job in ipairs(jobs) do touched[job.slot]=true;if job.item.wornSlot then touched[job.item.wornSlot]=true end end
     local op={id=serial,jobs=jobs,before=before,touched=touched,started=GetTime and GetTime() or 0,checks=0,reason=reason or 'manual'}
+    if reason=='manual' then local slots={};for _,job in ipairs(jobs) do slots[#slots+1]=job.slot end;self:ReleaseManualOverrides(slots) end
     self.operation=op;self.busy=true
     for _,job in ipairs(jobs) do self:TrackEquipmentRequest(job.slot,job.link or false) end
     -- Move equipped sources first; bag sources fill the slots they vacate.
@@ -148,31 +157,40 @@ function AA:StartEquipmentQueue(jobs,reason,confirmed)
     if C_Timer and C_Timer.After then C_Timer.After(.15,function() AA:CheckOperation(op) end) else self:CheckOperation(op) end
 end
 function AA:EquipSelected(quick)
-    if self.busy then return end
-    if quick and self.db.adviceOnly then self:Analyze();self.window:Show();self:ShowPage('gear');return end
-    local oldPreview=self.preview;local selected=self.selected or {}
-    local offers,_,review=self:FindUpgrades()
-    local jobs={};local chosenGroups={}
-    for slot,offer in pairs(offers) do
-        local old=oldPreview and oldPreview[slot]
-        local approved=quick or (selected[slot] and old and self:EquipmentLinksMatch(old.link,offer.link) and self:EquipmentLinksMatch(old.wornLink,offer.wornLink))
-        if approved then chosenGroups[offer.group]=true end
+    if self.busy or self.scanning or self:IsCombatBlocked() then return end
+    if quick and self.db.adviceOnly then
+        self:Analyze();if self.window then self.window:Show();self:ShowPage('gear') end;return
     end
-    for _,def in ipairs(self.slots) do local offer=offers[def.slot];if offer and chosenGroups[offer.group] then jobs[#jobs+1]=offer end end
-    if #jobs==0 and next(review) then
-        self:Analyze();if self.window then self.window:Show();self:ShowPage('gear') end
-        self:SetStatus('Des objets demandent une confirmation.');self:NotifyOutcome({changes={},failed={},review=true});return
+    local function apply(offers,_,review)
+        local jobs={}
+        for _,def in ipairs(self.slots) do
+            local offer=offers[def.slot]
+            if offer and (quick or self.selected[def.slot]) then jobs[#jobs+1]=offer end
+        end
+        if #jobs==0 and next(review or {}) then
+            self.preview=offers;self.review=review
+            if self.window then self.window:Show();self:ShowPage('gear') end
+            self:SetStatus('Des objets demandent une confirmation.');self:NotifyOutcome({changes={},failed={},review=true});return
+        end
+        self:StartEquipmentQueue(jobs,'manual')
     end
-    if #jobs>0 then local slots={};for _,job in ipairs(jobs) do slots[#slots+1]=job.slot end;self:ReleaseManualOverrides(slots) end
-    self:StartEquipmentQueue(jobs,'manual')
+    if quick then self:StartPlanTask({},apply)
+    elseif self.preview then apply(self.preview,0,self.review)
+    else self:Analyze() end
 end
 function AA:ConfirmReviewed()
-    if self.busy then return end
-    local _,_,review=self:FindUpgrades({allWeapons=self.reviewWeapons})
-    local jobs,lines={},{}
-    for _,def in ipairs(self.slots) do local job=review[def.slot];if job then jobs[#jobs+1]=job;lines[#lines+1]=self:HistorySlotName(job.slot)..': '..(job.link or self:Tr('Vide')) end end
-    if #jobs==0 then self:SetStatus('Aucun objet à confirmer.');return end
-    self:ConfirmAction('Confirmer les objets incertains ?',table.concat(lines,'\n')..'\n'..self:Tr('Les effets et bonus non évalués restent à vérifier.'),function() AA:StartEquipmentQueue(jobs,'manual',true) end)
+    if self.busy or self.scanning or self:IsCombatBlocked() then return end
+    local function confirm(_,__,review)
+        local jobs,lines={},{}
+        for _,def in ipairs(self.slots) do
+            local job=review[def.slot]
+            if job then jobs[#jobs+1]=job;lines[#lines+1]=self:HistorySlotName(job.slot)..': '..(job.link or self:Tr('Vide')) end
+        end
+        if #jobs==0 then self:SetStatus('Aucun objet à confirmer.');return end
+        lines[#lines+1]=self:Tr(jobs[1].reason or 'Les effets et bonus non évalués restent à vérifier.')
+        self:ConfirmAction('Confirmer les objets incertains ?',table.concat(lines,'\n'),function() AA:StartEquipmentQueue(jobs,'manual',true) end)
+    end
+    if self.review then confirm(nil,nil,self.review) else self:StartPlanTask({allWeapons=self.reviewWeapons},confirm) end
 end
 function AA:ConfirmAction(title,body,accept)
     if not StaticPopupDialogs or not StaticPopup_Show then self:SetStatus('Confirmation indisponible.');return end

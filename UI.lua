@@ -216,7 +216,7 @@ function AA:OpenTextWindow(title,text)
         f=CreateFrame("Frame","AutoArmorTextWindow",UIParent,"BasicFrameTemplateWithInset")
         self.textWindow=f
         f:SetSize(620,420);f:SetPoint("CENTER");f:SetFrameStrata("FULLSCREEN_DIALOG");f:EnableMouse(true)
-        f:SetClampedToScreen(true);f:SetScale(math.min(1,math.max(.65,(UIParent:GetHeight()-30)/420)))
+        f:SetClampedToScreen(true);f:SetScale(math.min(1,(UIParent:GetWidth()-30)/620,(UIParent:GetHeight()-30)/420))
         ApplyBronzePanel(f)
         if UISpecialFrames then table.insert(UISpecialFrames,"AutoArmorTextWindow") end
         local scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
@@ -225,10 +225,12 @@ function AA:OpenTextWindow(title,text)
         edit:SetMultiLine(true);edit:SetFontObject("ChatFontNormal");edit:SetSize(556,290)
         edit:SetAutoFocus(false);edit:SetMaxLetters(50000);scroll:SetScrollChild(edit)
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
-        Label(f,"GameFontHighlightSmall","Ctrl+A, puis Ctrl+C pour copier le diagnostic.",16,-375,570)
+        Label(f,"GameFontHighlightSmall","Ctrl+A, puis Ctrl+C pour copier.",16,-375,570)
     end
     f.TitleText:SetText(self:Tr(title));f.edit:SetText(text or "")
-    f:Show();f.edit:SetFocus();f.edit:HighlightText()
+    f:Show()
+    if title=="Comparer un objet" then f.edit:ClearFocus();f.edit:HighlightText(0,0)
+    else f.edit:SetFocus();f.edit:HighlightText() end
 end
 
 function AA:CreateUI()
@@ -236,7 +238,7 @@ function AA:CreateUI()
     local f = CreateFrame("Frame", "AutoArmorOptionsWindow", UIParent, "BasicFrameTemplateWithInset")
     f:SetSize(740, 700)
     f:SetClampedToScreen(true)
-    f:SetScale(math.min(1, math.max(.65, (UIParent:GetHeight()-30)/700)))
+    f:SetScale(math.min(1, (UIParent:GetHeight()-30)/700, (UIParent:GetWidth()-30)/740))
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true)
@@ -255,7 +257,7 @@ function AA:CreateUI()
     if UISpecialFrames then table.insert(UISpecialFrames, "AutoArmorOptionsWindow") end
 
     local pages = {}
-    for _, name in ipairs({"gear", "settings", "protection", "history", "diagnostic"}) do
+    for _, name in ipairs({"gear", "settings", "protection", "history", "diagnostic", "inventory"}) do
         local page = CreateFrame("Frame", nil, f)
         page:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -76)
         page:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 51)
@@ -283,14 +285,9 @@ function AA:CreateUI()
         self:ShowPage("settings")
     end
     f.nav={}
-    f.nav.gear=Button(f, "Équipement", 135, 28, 16, -38, function() AA:ShowPage("gear") end)
-    f.nav.settings=Button(f, "Paramètres", 135, 28, 158, -38, function() AA:ShowPage("settings") end)
-    f.nav.protection=Button(f, "Objets protégés", 135, 28, 300, -38, function() AA:ShowPage("protection") end)
-    f.nav.history=Button(f, "Historique", 135, 28, 442, -38, function() AA:ShowPage("history") end)
-    f.nav.diagnostic=Button(f, "Diagnostic", 135, 28, 584, -38, function()
-        AA:ShowPage("diagnostic")
-        AA:AnalyzeDiagnostics()
-    end)
+    f.nav.gear=Button(f,"Équipement",228,28,16,-38,function() AA:ShowPage("gear") end)
+    f.nav.history=Button(f,"Historique",228,28,252,-38,function() AA:ShowPage("history") end)
+    f.nav.settings=Button(f,"Paramètres",228,28,488,-38,function() AA:ShowPage("settings") end)
     local divider = f:CreateTexture(nil, "BORDER")
     divider:SetColorTexture(unpack(THEME.edge))
     divider:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -71)
@@ -298,24 +295,39 @@ function AA:CreateUI()
     divider:SetHeight(1)
 
     local gear = pages.gear
-    f.gearSummary=Label(gear,"GameFontHighlightSmall","",10,-8,665)
-    f.scanButton=Button(gear,"Vérifier mes sacs",155,27,10,-37,function() AA:Analyze() end)
-    f.applyButton=Button(gear,"Équiper la sélection",172,27,174,-37,function() AA:EquipSelected(false) end)
-    f.quickButton=Button(gear,"Optimiser",140,27,355,-37,function() AA:EquipSelected(true) end)
-    f.undoButton=Button(gear,"Annuler",100,27,504,-37,function() AA:UndoLast() end)
-    f.reviewButton=Button(gear,"À confirmer",150,25,10,-72,function() AA:ConfirmReviewed() end)
-    Label(gear,"GameFontHighlightSmall","Survole un objet pour comprendre la recommandation.",174,-79,490)
-    Label(gear,"GameFontNormalSmall","EMPLACEMENT",10,-111,95)
-    Label(gear,"GameFontNormalSmall","ÉQUIPÉ",111,-111,190)
-    Label(gear,"GameFontNormalSmall","AMÉLIORATION",333,-111,200)
-    Label(gear,"GameFontNormalSmall","OK",586,-111,30)
-    Label(gear,"GameFontNormalSmall","VERROU",625,-111,56)
+    f.gearSummary=Label(gear,"GameFontHighlightSmall","",12,-16,290)
+    f.gearSpecialization=Selector(gear,"AutoArmorGearSpecializationMenu",316,-8,375,function()
+        local choices={{text=AA:Tr("Automatique (selon mes talents)"),value="auto",selected=AA.db.specialization=="auto"}}
+        for _,spec in ipairs(AA:GetSpecializationChoices()) do choices[#choices+1]={text=AA:Tr(spec.label),value=spec.id,selected=AA.db.specialization==spec.id} end
+        return choices
+    end,function(value) AA:SetOption("specialization",value) end)
+    f.primaryButton=Button(gear,"Analyser mes sacs",242,32,12,-45,function()
+        if AA.scanning then AA:CancelPlanTask();AA:SetStatus("Analyse annulée.");return end
+        for slot in pairs(AA.preview or {}) do if AA.selected[slot] then AA:EquipSelected(false);return end end
+        AA:Analyze()
+    end)
+    f.scanButton=Button(gear,"Actualiser",105,32,262,-45,function() AA:Analyze() end)
+    f.applyButton=f.primaryButton
+    f.quickButton=Button(gear,"Optimiser",124,32,375,-45,function() AA:EquipSelected(true) end)
+    f.undoButton=Button(gear,"Annuler",110,32,507,-45,function() AA:UndoLast() end)
+    f.reviewButton=Button(gear,"À confirmer",151,25,12,-88,function() AA:ConfirmReviewed() end)
+    Button(gear,"Objets protégés",162,25,171,-88,function() AA:ShowPage("protection") end)
+    Button(gear,"Comparer / conserver",183,25,341,-88,function() AA:RefreshInventoryPage(true);AA:ShowPage("inventory") end)
+    Button(gear,"Diagnostic",159,25,532,-88,function() AA:AnalyzeDiagnostics();AA:ShowPage("diagnostic") end)
+    f.allSlotsCheck=Check(gear,"Afficher toute la tenue",10,-121,function(v) AA.db.showAllSlots=v;AA:RefreshUI() end)
+    f.planInfo=Label(gear,"GameFontDisableSmall","",242,-127,447)
+    Label(gear,"GameFontNormalSmall","EMPLACEMENT",10,-158,95)
+    Label(gear,"GameFontNormalSmall","ÉQUIPÉ",111,-158,190)
+    Label(gear,"GameFontNormalSmall","AMÉLIORATION",333,-158,200)
+    Label(gear,"GameFontNormalSmall","OK",586,-158,30)
+    Label(gear,"GameFontNormalSmall","VERROU",625,-158,56)
     local scroll=CreateFrame("ScrollFrame","AutoArmorGearScroll08",gear,"UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT",gear,"TOPLEFT",6,-132);scroll:SetPoint("BOTTOMRIGHT",gear,"BOTTOMRIGHT",-26,7)
-    local content=CreateFrame("Frame",nil,scroll);content:SetSize(675,#self.slots*48);scroll:SetScrollChild(content)
+    scroll:SetPoint("TOPLEFT",gear,"TOPLEFT",6,-179);scroll:SetPoint("BOTTOMRIGHT",gear,"BOTTOMRIGHT",-26,7)
+    local content=CreateFrame("Frame",nil,scroll);content:SetSize(675,#self.slots*58);scroll:SetScrollChild(content)
+    f.gearContent=content
     f.rows={}
     for i,def in ipairs(self.slots) do
-        local row=CreateFrame("Frame",nil,content);row:SetSize(675,48);row:SetPoint("TOPLEFT",content,"TOPLEFT",0,-(i-1)*48)
+        local row=CreateFrame("Frame",nil,content);row:SetSize(675,58);row:SetPoint("TOPLEFT",content,"TOPLEFT",0,-(i-1)*58)
         if i%2==0 then local shade=row:CreateTexture(nil,"BACKGROUND");shade:SetAllPoints();shade:SetColorTexture(.16,.12,.08,.38) end
         Label(row,"GameFontHighlightSmall",def.name,4,-15,94)
         row.wornIcon=row:CreateTexture(nil,"ARTWORK");row.wornIcon:SetSize(24,24);row.wornIcon:SetPoint("TOPLEFT",row,"TOPLEFT",102,-10)
@@ -323,9 +335,10 @@ function AA:CreateUI()
         row.worn:SetHeight(34)
         row.wornTip=CreateFrame("Button",nil,row);row.wornTip:SetPoint("TOPLEFT",row,"TOPLEFT",100,-2);row.wornTip:SetSize(216,44)
         row.offer=Label(row,"GameFontHighlightSmall","",327,-7,240)
-        row.offer:SetHeight(18);row.offer:SetWordWrap(false)
-        row.state=Label(row,"GameFontDisableSmall","",327,-28,240)
+        row.offer:SetHeight(30);row.offer:SetWordWrap(true)
+        row.state=Label(row,"GameFontDisableSmall","",327,-39,240)
         row.offerTip=CreateFrame("Button",nil,row);row.offerTip:SetPoint("TOPLEFT",row,"TOPLEFT",325,-2);row.offerTip:SetSize(244,44)
+        row.offerTip:SetScript("OnClick",function() local offer=(AA.preview and AA.preview[def.slot]) or (AA.review and AA.review[def.slot]);if offer and offer.link then AA:ShowItemComparison(offer.link,offer) end end)
         row.select=Check(row,"",578,-10,function(yes)
             local selected=AA.preview and AA.preview[def.slot]
             if selected then for slot,offer in pairs(AA.preview) do if offer.group==selected.group then AA.selected[slot]=yes end end end
@@ -335,6 +348,24 @@ function AA:CreateUI()
         f.rows[def.slot]=row
     end
 
+    local inventory=pages.inventory
+    Label(inventory,"GameFontNormalLarge","Comparer et conserver",12,-12,640)
+    Label(inventory,"GameFontHighlightSmall","Ctrl+Alt+clic sur un objet ouvre aussi sa comparaison.",12,-41,650)
+    f.keepOnly=Check(inventory,"Afficher seulement les objets à conserver",10,-69,function(v) f.keepFilter=v;f.inventoryPage=1;AA:RefreshInventoryPage() end)
+    Button(inventory,"Retour à l’équipement",190,25,496,-70,function() AA:ShowPage("gear") end)
+    f.inventoryRows={}
+    for i=1,7 do
+        local row=CreateFrame("Frame",nil,inventory);row:SetSize(674,55);row:SetPoint("TOPLEFT",inventory,"TOPLEFT",12,-109-(i-1)*57)
+        row.icon=row:CreateTexture(nil,"ARTWORK");row.icon:SetSize(32,32);row.icon:SetPoint("TOPLEFT",row,"TOPLEFT",0,-7)
+        row.name=Label(row,"GameFontHighlightSmall","",42,-6,354)
+        row.reason=Label(row,"GameFontDisableSmall","",42,-27,354)
+        row.compare=Button(row,"Comparer",111,28,407,-10,function() if row.item then AA:ShowItemComparison(row.item.link) end end)
+        row.reserve=Button(row,"Conserver",142,28,526,-10,function() if row.item then AA:ToggleReserve(row.item.itemID);AA:RefreshInventoryPage() end end)
+        f.inventoryRows[i]=row
+    end
+    f.inventoryPrev=Button(inventory,"Précédent",120,25,12,-519,function() f.inventoryPage=math.max(1,(f.inventoryPage or 1)-1);AA:RefreshInventoryPage() end)
+    f.inventoryNext=Button(inventory,"Suivant",120,25,140,-519,function() f.inventoryPage=(f.inventoryPage or 1)+1;AA:RefreshInventoryPage() end)
+    f.inventoryCount=Label(inventory,"GameFontDisableSmall","",280,-526,390)
     local settings=pages.settings
     Label(settings,"GameFontNormalSmall","Langue de l'interface :",14,-16,150)
     f.languagePicker=Selector(settings,"AutoArmorLanguageMenu",170,-8,200,function()
@@ -387,6 +418,7 @@ function AA:CreateUI()
     local display=sections.display
     f.notifyCheck=Check(display,"Afficher une petite notification après optimisation",12,-7,function(v) AA:SetOption("showNotifications",v) end)
     f.motionCheck=Check(display,"Réduire les animations",12,-45,function(v) AA:SetOption("reduceMotion",v) end)
+    f.itemCompareCheck=Check(display,"Activer Ctrl+Alt+clic pour comparer un objet",12,-269,function(v) AA:SetOption("itemCompare",v) end)
     f.adviceCheck=Check(display,"Conseiller une récompense avant de rendre une quête",12,-83,function(v) AA:SetOption("questAdvice",v) end)
     Label(display,"GameFontHighlightSmall","Les notifications affichent le résultat confirmé et permettent d’annuler.",14,-133,650)
     Button(display,"Tester l’animation",205,28,14,-171,function() AA:PreviewToast() end)
@@ -396,6 +428,7 @@ function AA:CreateUI()
     section("calculation")
 
     local protect = pages.protection
+    Button(protect,"Retour",95,23,578,-8,function() AA:ShowPage("gear") end)
     Label(protect, "GameFontNormalLarge", "Choisir les objets à ne jamais remplacer", 12, -8, 640)
     Label(protect, "GameFontHighlightSmall",
         "Protège les pièces que tu portes ou conserves dans tes sacs.\n" ..
@@ -474,6 +507,7 @@ function AA:CreateUI()
     f.historyCount = Label(history, "GameFontHighlightSmall", "", 280, -547, 360)
 
     local diagnostic = pages.diagnostic
+    Button(diagnostic,"Retour",95,23,578,-8,function() AA:ShowPage("gear") end)
     Label(diagnostic, "GameFontNormalLarge", "Pourquoi certains équipements sont-ils ignorés ?", 10, -8, 640)
     Label(diagnostic, "GameFontHighlightSmall",
         "Le diagnostic compare les pièces de tes sacs aux réglages actuels. Il ne change aucun objet.", 10, -37, 660)
@@ -532,19 +566,23 @@ function AA:RefreshUI()
     local help=self.db.specialization~="auto" and "Ton choix reste prioritaire, même si tu joues une autre spécialisation dans tes talents." or
         (p.uncertain and "Détection incertaine : choisis la spécialisation que tu souhaites jouer." or "Détection du jeu ou arbre de talents dominant. Tu peux choisir une autre spécialisation.")
     f.specializationInfo:SetText(self:Tr(help))
-    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. self:Tr(({gear="Mon équipement",settings="Paramètres",protection="Objets protégés",history="Historique",diagnostic="Diagnostic"})[f.activeTab] or "Mon équipement")) end
+    if f.TitleText then f.TitleText:SetText("AutoArmor " .. AA.version .. " — " .. self:Tr(({gear="Mon équipement",settings="Paramètres",protection="Objets protégés",history="Historique",diagnostic="Diagnostic",inventory="Comparer et conserver"})[f.activeTab] or "Mon équipement")) end
     f.statusText:SetText(self.status)
     f.statusText:SetTextColor(unpack(self.statusColor))
-    f.quickButton:SetEnabled(not self.busy)
+    local idle=not self.busy and not self.scanning
+    f.quickButton:SetEnabled(idle)
     f.undoButton:SetEnabled(not self.busy and self.lastUndo ~= nil)
-    f.scanButton:SetEnabled(not self.busy)
-    local count = 0
+    f.scanButton:SetEnabled(idle)
+    local count,visibleRows = 0,0
     for _, def in ipairs(self.slots) do
         local slot = def.slot
         local row = f.rows[slot]
         local locked = self:IsSlotProtected(slot)
         local offer = self.preview and self.preview[slot]
-        local review = self.review and self.review[slot]
+        local review = not offer and self.review and self.review[slot]
+        local visible=self.db.showAllSlots or not self.preview or offer~=nil or review~=nil
+        row:SetShown(visible)
+        if visible then row:ClearAllPoints();row:SetPoint("TOPLEFT",f.gearContent,"TOPLEFT",0,-visibleRows*58);visibleRows=visibleRows+1 end
         local worn = self:ReadWorn(slot)
         row.worn:SetText(worn.name or self:Tr(worn.link and "Données en chargement" or "Vide"))
         row.wornIcon:SetTexture(worn.icon)
@@ -558,16 +596,26 @@ function AA:RefreshUI()
         if locked then row.offer:SetText("|cffffbd78" .. self:Tr("Protégé") .. "|r")
         elseif self:IsReserveItem(worn.itemID) then row.offer:SetText("|cffffbd78"..self:Tr("Réservé").."|r")
         elseif review then row.offer:SetText(review.item.name or self:Tr("Vide"));row.state:SetText("|cffffc46b"..self:Tr("À confirmer").."|r")
-        elseif not self.preview then row.offer:SetText("|cffaaaaaa" .. self:Tr("Clique sur Vérifier mes sacs") .. "|r")
+        elseif not self.preview then row.offer:SetText("|cffaaaaaa" .. self:Tr("Clique sur Analyser mes sacs") .. "|r")
         elseif offer then
             row.offer:SetText(offer.item.name or self:Tr("Vide"))
             row.state:SetText("|cff63dca0"..self:Tr("Amélioration estimée").."|r")
             if self.selected[slot] then count = count + 1 end
         else row.offer:SetText("|cffaaaaaa" .. self:Tr("Aucune amélioration") .. "|r") end
     end
-    f.applyButton:SetEnabled(count > 0 and not self.busy)
+    f.gearContent:SetHeight(math.max(58,visibleRows*58))
+    f.allSlotsCheck:SetChecked(self.db.showAllSlots)
+    f.applyButton:SetEnabled(not self.busy)
+    f.primaryButton:SetText(self:Tr(self.scanning and "Annuler l’analyse" or (count>0 and "Équiper les changements retenus" or "Analyser mes sacs")))
+    f.gearSpecialization:SetText(self.db.specialization=="auto" and self:Tr("Automatique (selon mes talents)") or self:Tr(p.label))
+    f.gearSpecialization:SetEnabled(idle)
+    f.itemCompareCheck:SetChecked(self.db.itemCompare)
+    local assessment=self.lastAssessment
+    local detail=self.preview and (visibleRows==0 and "Ton équipement est déjà adapté aux critères évalués." or "Les changements liés sont sélectionnés ensemble.") or "Analyse à la demande. Tes choix restent prioritaires."
+    if self.scanning then detail="Recherche en cours ; tu peux annuler." end
+    f.planInfo:SetText(self:Tr(detail))
     local reviews=0;for _ in pairs(self.review or {}) do reviews=reviews+1 end
-    f.reviewButton:SetEnabled(reviews>0 and not self.busy)
+    f.reviewButton:SetEnabled(reviews>0 and idle)
     f.reviewButton:SetText(self:Tr("À confirmer")..(reviews>0 and " ("..reviews..")" or ""))
     local confidence=p.source=="manual" and "Spécialisation choisie" or (p.uncertain and "Statistiques à vérifier" or "Calcul automatique")
     f.gearSummary:SetText(self:Tr(p.label).." · "..self:Tr(confidence))
@@ -592,6 +640,7 @@ function AA:RefreshUI()
     f.manualReset:SetEnabled(hold > 0 and not self.busy)
     f.weaponPlanButton:SetEnabled(not self.busy and self.db.includeWeapons)
     f.toastMoveButton:SetText(self:Tr(self.toastPositioning and "Terminer" or "Déplacer"))
+    if f.activeTab == "inventory" then self:RefreshInventoryPage() end
     if f.activeTab == "protection" then self:RefreshProtectionPage() end
     if f.activeTab == "history" then self:RefreshHistoryPage() end
     if f.activeTab == "diagnostic" then self:RefreshDiagnosticPage() end
@@ -695,4 +744,30 @@ function AA:RefreshDiagnosticPage()
     else
         f.diagnosticSummary:SetText(self:Tr("Clique sur Actualiser pour analyser tes sacs"))
     end
+end
+
+function AA:RefreshInventoryPage(refresh)
+    local f=self.window;if not f or not f.inventoryRows then return end
+    if refresh or not self.inventoryItems or self.inventoryGeneration~=(self.dataGeneration or 0) then
+        self.inventoryItems={};self.inventoryGeneration=self.dataGeneration or 0
+        local hints={};for _,hint in ipairs(self:FindKeepSuggestions()) do hints[hint.item.key]=hint.reason end
+        for _,item in ipairs(self:CollectBagItems()) do
+            if self:GetPossibleSlots(item.equipLoc) then self.inventoryItems[#self.inventoryItems+1]={item=item,reason=hints[item.key]} end
+        end
+        table.sort(self.inventoryItems,function(a,b) return a.item.name<b.item.name end)
+    end
+    local list={};for _,entry in ipairs(self.inventoryItems) do if not f.keepFilter or entry.reason or self:IsReserveItem(entry.item.itemID) then list[#list+1]=entry end end
+    local total=math.max(1,math.ceil(#list/7));f.inventoryPage=math.max(1,math.min(f.inventoryPage or 1,total))
+    for i,row in ipairs(f.inventoryRows) do
+        local entry=list[(f.inventoryPage-1)*7+i];row:SetShown(entry~=nil);row.item=entry and entry.item
+        if entry then
+            row.icon:SetTexture(entry.item.icon);row.name:SetText(entry.item.name)
+            row.reason:SetText(self:IsReserveItem(entry.item.itemID) and self:Tr("Réservé") or entry.reason or self:Tr("Comparer avant de décider"))
+            row.reserve:SetText(self:Tr(self:IsReserveItem(entry.item.itemID) and "Libérer" or "Conserver"))
+            row.compare:SetEnabled(not self.busy and not self.scanning);row.reserve:SetEnabled(not self.busy and not self.scanning)
+            SetTooltip(row.compare,entry.item.link)
+        end
+    end
+    f.inventoryPrev:SetEnabled(f.inventoryPage>1);f.inventoryNext:SetEnabled(f.inventoryPage<total)
+    f.inventoryCount:SetText(self:TF("%d objet(s) | page %d/%d",#list,f.inventoryPage,total))
 end

@@ -1,0 +1,3 @@
+Owner approved the tested 1.0.0-rc.1 for stable 1.0.0 publication on 2026-11-28.
+Runtime matches the approved candidate except its version label.
+Run the 93 regression scenarios and verify tests/approved-1.0.0.sha256 before tagging and publishing.

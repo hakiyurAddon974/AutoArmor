@@ -1,23 +1,23 @@
-name: AutoArmor - approved release v0.8.0-beta.3
+name: AutoArmor - approved release v1.0.0
 
 on:
   push:
     branches:
       - main
     paths:
-      - '.github/release-trigger-v0.8.0-beta.3'
+      - '.github/release-trigger-v1.0.0'
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: publish-autoarmor-v0.8.0-beta.3
+  group: publish-autoarmor-v1.0.0
   cancel-in-progress: false
 
 jobs:
   verify-tag-publish:
-    if: contains(github.event.head_commit.message, 'Publish approved AutoArmor v0.8.0-beta.3')
+    if: contains(github.event.head_commit.message, 'Publish approved AutoArmor v1.0.0')
     runs-on: ubuntu-latest
     steps:
       - name: Check out approved AutoArmor
@@ -29,9 +29,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '^## Version: 0.8.0-beta.3$' AutoArmor.toc
+          grep -q '^## Version: 1.0.0$' AutoArmor.toc
           test ! -e Profiles.lua
-          sha256sum -c tests/approved-0.8.0-beta.3.sha256
+          sha256sum -c tests/approved-1.0.0.sha256
 
       - name: Install Lua test runtime
         run: |
@@ -46,17 +46,17 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --tags
-          if git rev-parse --verify -q refs/tags/v0.8.0-beta.3 >/dev/null; then
+          if git rev-parse --verify -q refs/tags/v1.0.0 >/dev/null; then
             echo 'Refusing duplicate publication: tag already exists'
             exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a v0.8.0-beta.3 -m 'AutoArmor v0.8.0-beta.3 - owner-approved'
-          git push origin refs/tags/v0.8.0-beta.3
+          git tag -a v1.0.0 -m 'AutoArmor v1.0.0 - owner-approved'
+          git push origin refs/tags/v1.0.0
 
-      - name: Publish approved beta through the existing release pipeline
+      - name: Publish approved release through the existing release pipeline
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release.yml --ref v0.8.0-beta.3 -f publish=true
+        run: gh workflow run release.yml --ref v1.0.0 -f publish=true

@@ -117,7 +117,7 @@ local function number(text) return text and tonumber((text:gsub(',','.'))) end
 function AA:ReadAssessment(item)
     if item.empty then return {stats={},state='ready',effects={},sets={},uniqueKnown=true} end
     if item.assessment then return item.assessment end
-    local a={stats={},effects={},sets={},state='ready',raw={}}
+    local a={stats={},effects={},sets={},setBonuses={},timedEffects={},state='ready',raw={}}
     local raw=self:Call(C_Item and C_Item.GetItemStats,item.link)
     if type(raw)~='table' then a.state='loading';self:RequestItem(item.link) else
         a.raw=raw
@@ -135,12 +135,18 @@ function AA:ReadAssessment(item)
         for _,text in ipairs(a.lines) do
             local body=text:match('^Equip:%s*(.+)') or text:match('^Équipé%s*:%s*(.+)') or text:match('^Equipé%s*:%s*(.+)')
             local threshold=text:match('^%((%d+)%)%s*[Ss]et%s*:') or text:match('^%((%d+)%)%s*[Ee]nsemble%s*:')
-            if threshold then a.sets[#a.sets+1]=tonumber(threshold)
+            if threshold then
+                a.sets[#a.sets+1]=tonumber(threshold)
+                local bonusText=text:match('^%(%d+%)%s*[Ss]et%s*:%s*(.+)') or text:match('^%(%d+%)%s*[Ee]nsemble%s*:%s*(.+)')
+                a.setBonuses[#a.setBonuses+1]={count=tonumber(threshold),text=bonusText,stats=self:ParseStaticBonus(bonusText)}
             elseif text:match('^Use:') or text:match('^Utiliser%s*:') or text:match('^Utilisation%s*:') then a.effects[#a.effects+1]=text
             elseif text:match('^Chance on hit%s*:') or text:match('^Chances? quand vous touchez%s*:') or text:match('^Chance de toucher%s*:') then a.effects[#a.effects+1]=text
             elseif body then
                 local known=false
+                local parsed=self:ParseStaticBonus(body)
+                if parsed then for stat,value in pairs(parsed) do supplemental[stat]=(supplemental[stat] or 0)+value end;known=true end
                 for _,rule in ipairs(staticPatterns) do
+                    if known then break end
                     local v=number(body:match(rule[2]))
                     if v then supplemental[rule[1]]=(supplemental[rule[1]] or 0)+v;known=true;break end
                 end
@@ -169,6 +175,10 @@ function AA:ReadAssessment(item)
             end
             if not a.speed then a.speed=number(text:match('[Ss]peed%s+([%d%.,]+)') or text:match('[Vv]itesse%s+([%d%.,]+)')) end
             if text:match('Unique%-Equipped') or text:match('Unique %- Équipé') or text:match('Unique%-Équipé') then a.tooltipUnique=true end
+        end
+        for _,effect in ipairs(a.effects) do
+            local timed=self:DescribeTimedEffect(effect)
+            if timed then a.timedEffects[#a.timedEffects+1]=timed end
         end
         for stat,value in pairs(supplemental) do if a.stats[stat]==nil then a.stats[stat]=value end end
     end

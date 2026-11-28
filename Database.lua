@@ -4,14 +4,16 @@ local defaults = {
     specialization = "auto",
     adviceOnly = false,
     reduceMotion = false,
+    itemCompare = true,
+    showAllSlots = false,
     reserveItems = {},
     quickMode = true,
     skipUnboundBoE = true,
     scoringMode = "role", -- New installs use role weighting; existing choices are preserved.
     preferredArmor = true,
     locked = {},
-    autoQuestRewards = true,
-    autoLevelUp = true,
+    autoQuestRewards = false,
+    autoLevelUp = false,
     includeWeapons = true,
     autoWeapons = true, -- Active aussi les armes après quête / niveau.
     smartWeapons = true,
@@ -97,6 +99,7 @@ function AA:SetOption(key, value)
     if self.busy or defaults[key]==nil then return end
     if key=="specialization" and not self:IsValidSpecialization(value) then return end
     self.db[key] = value
+    self.settingsRevision=(self.settingsRevision or 0)+1
     self:InvalidatePreview()
     self:SetStatus("Paramètre enregistré.")
 end

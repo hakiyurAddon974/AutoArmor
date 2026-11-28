@@ -377,6 +377,53 @@ en["Détection du jeu ou arbre de talents dominant. Tu peux choisir une autre sp
 en["Spécialisation choisie"]="Selected specialization"
 en["Survole une proposition pour voir les statistiques comparées. Les effets incertains restent à confirmer."]="Hover over a recommendation to compare stats. Uncertain effects still require confirmation."
 
+
+-- 1.0 interface and engine explanations
+en["Analyser mes sacs"]="Analyze my bags"
+en["Clique sur Analyser mes sacs"]="Click Analyze my bags"
+en["Ctrl+A, puis Ctrl+C pour copier."]="Ctrl+A, then Ctrl+C to copy."
+en["Actualiser"]="Refresh"
+en["Équiper les changements retenus"]="Equip selected changes"
+en["Annuler l’analyse"]="Cancel analysis"
+en["Analyse des combinaisons…"]="Analyzing combinations…"
+en["Analyse annulée."]="Analysis cancelled."
+en["Analyse annulée : personnage ou sacs modifiés."]="Analysis cancelled: character or bags changed."
+en["Analyse interrompue. Ouvre le diagnostic."]="Analysis interrupted. Open diagnostics."
+en["Paramètres modifiés : relance l’analyse."]="Settings changed: analyze again."
+en["Cette combinaison doit être appliquée entièrement."]="Apply this combination as a whole."
+en["Afficher toute la tenue"]="Show all equipment"
+en["Comparer / conserver"]="Compare / keep"
+en["Comparer et conserver"]="Compare and keep"
+en["Comparer un objet"]="Compare an item"
+en["Comparer"]="Compare"
+en["Conserver"]="Keep"
+en["Libérer"]="Release"
+en["Retour"]="Back"
+en["Retour à l’équipement"]="Back to equipment"
+en["Afficher seulement les objets à conserver"]="Show only items worth keeping"
+en["Ctrl+Alt+clic sur un objet ouvre aussi sa comparaison."]="Ctrl+Alt+click an item to open its comparison."
+en["Activer Ctrl+Alt+clic pour comparer un objet"]="Enable Ctrl+Alt+click to compare an item"
+en["Ton équipement est déjà adapté aux critères évalués."]="Your gear already meets the evaluated criteria."
+en["Les changements liés sont sélectionnés ensemble."]="Related changes are selected together."
+en["Analyse à la demande. Tes choix restent prioritaires."]="Analyze on demand. Your choices take priority."
+en["Recherche en cours ; tu peux annuler."]="Search in progress; you can cancel."
+en["Comparaison avec ton équipement actuel"]="Compared with your current equipment"
+en["Changements nécessaires ensemble :"]="Changes needed together:"
+en["Conseil uniquement. Aucun objet équipé."]="Advice only. No items equipped."
+en["Utilisable au niveau %d"]="Usable at level %d"
+en["À examiner pour %s"]="Consider for %s"
+en["%d changements à appliquer ensemble."]="Apply these %d changes together."
+en["Bonus d’ensemble évalué dans cette combinaison."]="Set bonus included in this combination."
+en["Compromis avec un bonus d’ensemble évalué."]="Trade-off with an evaluated set bonus."
+en["Talents pris en compte :"]="Talents taken into account:"
+en["Effet utilisable : +%s %s pendant %s s ; activation non simulée."]="On-use effect: +%s %s for %s s; activation is not simulated."
+en["Évaluation partielle : vérifie les effets signalés."]="Partial evaluation: review the listed effects."
+en["Statistiques évaluées ; gain de performance non garanti."]="Stats evaluated; performance gain is not guaranteed."
+en["Comparer avant de décider"]="Compare before deciding"
+en["Aucune récompense ne dépasse les objets déjà disponibles."]="No reward improves on items already available."
+en["Données de récompense en chargement."]="Reward data is loading."
+en["Conseil incertain : vérifie les effets avant de choisir."]="Uncertain advice: check effects before choosing."
+
 function AA:GetLanguage()
     return self.db and self.db.language == "fr" and "fr" or "en"
 end
@@ -414,6 +461,7 @@ function AA:LocalizeWidget(widget, source)
 end
 
 function AA:RefreshLanguage()
+    self.inventoryItems=nil
     if self.CloseChoiceMenu then self:CloseChoiceMenu() end
     for _, entry in ipairs(self._i18nWidgets or {}) do
         if entry.widget and entry.widget.SetText then

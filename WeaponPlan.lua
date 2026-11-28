@@ -1,7 +1,7 @@
 local _, AA = ...
 function AA:ReviewWeaponSetup()
-    if self.busy or self:IsCombatBlocked() then return end
-    local offers,_,review=self:FindUpgrades({allWeapons=true,weaponsOnly=true})
+    if self.busy or self.scanning or self:IsCombatBlocked() then return end
+    self:StartPlanTask({allWeapons=true,weaponsOnly=true},function(offers,_,review)
     local jobs,lines={},{}
     for _,slot in ipairs({16,17}) do
         local job=offers[slot] or review[slot]
@@ -9,4 +9,5 @@ function AA:ReviewWeaponSetup()
     end
     if #jobs==0 then self:SetStatus('Aucune configuration d’armes plus adaptée détectée.');return end
     self:ConfirmAction('Changer la configuration d’armes ?',table.concat(lines,'\n')..'\n'..self:Tr('Estimation selon ta classe et tes talents. Vérifie les effets et techniques.'),function() AA:StartEquipmentQueue(jobs,'weaponSetup',true) end)
+    end)
 end

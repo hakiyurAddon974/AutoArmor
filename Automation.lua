@@ -67,13 +67,13 @@ function AA:AutoOptimize(reason, isRetry)
     if not self.db then return end
     if reason == "quest" and not self.db.autoQuestRewards then return end
     if reason == "level" and not self.db.autoLevelUp then return end
-    if self.busy then return end
+    if self.busy or self.scanning then return end
     if self:IsCombatBlocked() then
         deferredReason = reason
         self:SetStatus("Optimisation en attente de la fin du combat.", 1, .75, .4)
         return
     end
-    local offers, unknown = self:FindUpgrades({automatic=true})
+    self:StartPlanTask({automatic=true},function(offers, unknown)
     local jobs = {}
     for _, def in ipairs(self.slots) do
         if offers[def.slot] and not self:IsSlotProtected(def.slot)
@@ -96,6 +96,7 @@ function AA:AutoOptimize(reason, isRetry)
     if unknown > 0 and not isRetry and C_Timer and C_Timer.After then
         C_Timer.After(1, function() AA:AutoOptimize(reason, true) end)
     end
+    end)
 end
 
 local function CheckPendingQuest()

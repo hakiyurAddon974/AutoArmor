@@ -1,39 +1,56 @@
-# AutoArmor
+# AutoArmor 1.0.0 — WoW Forever
 
-Smart gear selection for **World of Warcraft: Forever**. Use the **AA** buttons on
-the character window or bags: left-click to optimize, right-click for options.
-Bagnon is supported. English and French are available from the language dropdown.
+Stable release promoted from the owner-approved 1.0.0-rc.1 on 2026-11-28.
+Only the AutoArmor folder belongs in Interface/AddOns. Documentation and tests
+are supplied alongside it; they are not additional addons.
 
-## Version 0.8.0-beta.3
+## What changed
 
-- Compare gear using built-in class and specialization stat weights, or item level.
-- Choose the specialization you intend to play, or use automatic detection from
-  recognized specialization/talent data. Your choice does not change your talents.
-- Compare weapon combinations, rings and trinkets while respecting unique items,
-  protected gear, reserved items and manual equipment choices.
-- Review uncertain effects, set changes and ambiguous roles before equipping.
-- Confirm actual equipment changes before reporting success; inspect history or
-  undo the last optimization.
-- Use optional quest and level-up automation, discreet animated notifications,
-  reduced motion and equipment diagnostics.
+- A bounded, whole-outfit search compares combinations across slots, including
+  paired rings, trinkets, weapon hands, unique categories and recognized set bonuses.
+- A weaker individual piece can win as part of a better complete combination.
+  Related changes are applied together and revalidated before equipment calls.
+- Class and intended specialization drive heuristic stat weights. Supported
+  committed talent descriptions and client rating conversions refine them.
+  Manually selecting another specialization does not reuse incompatible active talents.
+- Forever feral weapon DPS is included. Unknown effects still require review;
+  recognized on-use effects are explained without assuming their activation uptime.
+- Analysis runs in cancellable slices and is invalidated when the character or
+  inventory changes. Automatic triggers never apply a partial weapon-disabled plan.
+- Three primary tabs: Equipment, History, Settings. Protections, diagnostics and
+  Compare / Keep remain accessible from Equipment.
+- Compare an item with Ctrl+Alt+click, inspect the entire proposed combination,
+  or mark an item to keep for another specialization. Nothing is sold or deleted.
+- Quest advice compares rewards against equipment already available in bags.
+  It never selects a reward or turns in a quest.
 
-No saved profile system or Pawn integration is required or included. Scores are
-heuristic estimates, not combat simulations or a guarantee of best-in-slot gear.
+## Controls and existing settings
 
-## Install
+Left-click an embedded AA button to optimize; right-click for settings.
+Advice-only mode makes the AA button show proposals first.
+The language dropdown and intended-specialization dropdown remain available.
+No saved profile manager or Pawn integration is included.
 
-Install the `AutoArmor` folder in `Interface/AddOns`, with `AutoArmor.toc` directly
-inside it. When updating manually, replace the old addon folder while the game is
-closed; keep SavedVariables to preserve character settings and protections.
+New characters start with quest and level-up automation disabled. Existing
+automation settings are preserved: check them before a strictly manual test.
+Locks, protected/reserved items, manual holds, history and undo remain supported.
+The validated notification implementation is unchanged from beta.3.
 
-See [LISEZ-MOI.md](LISEZ-MOI.md) for French instructions and
-[CHANGELOG.md](CHANGELOG.md) for this release's changes.
+## Limits and validation
 
-## Validation
+Scores are estimates, not simulated DPS, healing or survival gains. The search
+prunes large spaces and cannot guarantee a global optimum or best-in-slot gear.
+Unrecognized procs, conditional talents, set effects and uncertain roles remain
+explicitly limited; no guessed hit/defense caps or encounter model is applied.
+Changing between one-hand/off-hand and two-hand setups requires the separate
+weapon configuration review. This release targets Forever interface 16001.
 
-The project owner tested and approved this build for publication. Its 23 runtime
-files match the approved local beta.3 package. Automated checks compile 19 Lua
-modules and run 52 regression scenarios with simulated WoW APIs.
+23 Lua modules compile and 93 simulated regression scenarios pass, including
+40 small inventories checked against exhaustive enumeration and two 200-item
+stress cases. These are Lua 5.4 tests with mocked WoW APIs, not an in-game test.
+See Documentation/VALIDATION.md and Documentation/TEST_EN_JEU.md.
 
-Run `python3 tests/run.py` with Python 3 and the system Lua 5.4 library installed
-(`liblua5.4-0` on Ubuntu). These checks do not reproduce the live game renderer.
+The approved candidate runtime is unchanged apart from the version label.
+
+Project: https://www.curseforge.com/wow/addons/autoarmor
+Source: https://github.com/hakiyurAddon974/AutoArmor

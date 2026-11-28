@@ -79,9 +79,9 @@ function AA:IsValidSpecialization(id)
     for _,choice in ipairs(self:GetSpecializationChoices()) do if choice.id==id then return true end end
     return false
 end
-function AA:GetScoringContext()
+function AA:GetScoringContext(requestedID)
     local class=self:GetClass();local list=classRules[class] or {}
-    local requested=self.db and self.db.specialization or 'auto'
+    local requested=requestedID or (self.db and self.db.specialization) or 'auto'
     local id,source
     if requested~='auto' and self:IsValidSpecialization(requested) then
         id,source=requested,'manual'
@@ -98,6 +98,8 @@ function AA:GetScoringContext()
         source='class'
     end
     scoring.weights=copy(scoring.weights);scoring.source=source
+    self:ApplyRatingConversions(scoring)
+    self:ApplyTalentWeights(scoring)
     return scoring
 end
 function AA:GetDetectedRole() local p=self:GetScoringContext();return p.role,p.id end
@@ -109,12 +111,14 @@ function AA:ScoreData(item,slot,context)
     if (self:IsWeaponSlot(slot) and not self.db.smartWeapons) or (self.db.scoringMode=='ilvl' and not self:IsWeaponSlot(slot)) then return item.level,a.stats end
     local scoring=context.scoring;local score=0
     for stat,weight in pairs(scoring.weights) do score=score+(a.stats[stat] or 0)*weight end
-    -- DPS is only relevant to an attack weapon; caster/feral stat sticks gain none.
+    -- Forever forms use equipped weapon DPS (Blizzard's Hunter/Druid deep dive).
+    -- These utility coefficients remain estimates, never a damage simulation.
     local kind=scoring.weapon
     local dpsWeight=0
     if kind=='melee' or kind=='dagger' then dpsWeight=slot==16 and 4 or (slot==17 and 2 or 0)
     elseif kind=='ranged' then dpsWeight=slot==18 and 5 or 0
     elseif kind=='tank' then dpsWeight=slot==16 and .8 or 0 end
+    if kind=='feral' then dpsWeight=slot==16 and (scoring.role=='TANK' and 2 or 4) or 0 end
     if self:IsWeaponSlot(slot) and dpsWeight>0 then
         if not a.stats.DPS then return nil,'weaponData' end
         score=score+a.stats.DPS*dpsWeight

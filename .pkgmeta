@@ -18,3 +18,5 @@ ignore:
   - Textures/AutoArmorButton-preview.png
   - Textures/AutoArmorIcon-preview.png
   - Textures/AutoArmorLogo.png
+  - Documentation
+  - Gallery

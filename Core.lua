@@ -1,5 +1,5 @@
 local addonName, AA = ...
-AA.version = "0.8.0-beta.3"
+AA.version = "1.0.0"
 AA.preview = nil
 AA.selected = {}
 AA.status = "Ready: optimize in one click or after a quest or level-up."
@@ -36,6 +36,8 @@ function AA:IsCombatBlocked()
 end
 
 function AA:InvalidatePreview()
+    self.dataGeneration=(self.dataGeneration or 0)+1
+    if self.CancelPlanTask then self:CancelPlanTask() end
     self.preview = nil
     self.review = nil
     self.selected = {}
@@ -49,7 +51,7 @@ function AA:Analyze()
         self:Notify(self.status)
         return
     end
-    local result, unknown, review = self:FindUpgrades()
+    self:StartPlanTask({},function(result,unknown,review)
     self.review = review
     self.preview = result
     self.selected = {}
@@ -60,6 +62,7 @@ function AA:Analyze()
     end
     local suffix = unknown > 0 and self:TF(" %d objets non chargés ; réessaie plus tard.", unknown) or ""
     self:SetStatus(self:TF("%d amélioration(s) trouvée(s).", count) .. suffix, .45, .9, .7)
+    end)
 end
 
 function AA:OpenOptions()
@@ -81,16 +84,17 @@ events:SetScript("OnEvent", function(self)
     AA:InstallEmbeddedButtons()
     AA:InstallAutomation()
     AA:InstallPreviewInvalidation()
+    AA:InstallComparisonShortcut()
 end)
 -- Les automatisations ne sont déclenchées que par remise de quête avec
 -- récompense d'équipement détectée, ou par une montée de niveau.
 
 function AA:InstallPreviewInvalidation()
     local watcher=CreateFrame('Frame')
-    for _,event in ipairs({'BAG_UPDATE_DELAYED','PLAYER_EQUIPMENT_CHANGED','PLAYER_TALENT_UPDATE','TRAIT_CONFIG_UPDATED'}) do
+    for _,event in ipairs({'BAG_UPDATE_DELAYED','PLAYER_EQUIPMENT_CHANGED','PLAYER_TALENT_UPDATE','TRAIT_CONFIG_UPDATED','PLAYER_LEVEL_UP','PLAYER_REGEN_DISABLED','SPELLS_CHANGED','PLAYER_SPECIALIZATION_CHANGED'}) do
         pcall(watcher.RegisterEvent,watcher,event)
     end
     watcher:SetScript('OnEvent',function()
-        if AA.db and not AA.busy and (AA.preview or AA.review) then AA:InvalidatePreview() end
+        if AA.db and not AA.busy then AA:InvalidatePreview() end
     end)
 end

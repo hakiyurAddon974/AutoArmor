@@ -9,8 +9,8 @@ function AA:ExplainIgnoredItem(item,slot)
     return 'Aucun gain selon les critères actuels'
 end
 function AA:AnalyzeDiagnostics()
-    if self.busy or self:IsCombatBlocked() then return end
-    local offers,missing,review=self:FindUpgrades()
+    if self.busy or self.scanning or self:IsCombatBlocked() then return end
+    self:StartPlanTask({},function(offers,missing,review)
     local selected,uncertain={},{}
     for _,job in pairs(offers) do selected[job.item.key]=true end
     for _,job in pairs(review) do uncertain[job.item.key]=job.reason end
@@ -27,6 +27,7 @@ function AA:AnalyzeDiagnostics()
     table.sort(results,function(a,b) if a.reason~=b.reason then return a.reason<b.reason end;return a.label<b.label end)
     self.diagnosticResults=results;self.diagnosticLoading=missing;self.diagnosticPage=1
     self:SetStatus(self:TF('%d objet(s) examiné(s).',#items))
+    end)
 end
 function AA:BuildDiagnosticText()
     local scoring=self:GetScoringContext()
@@ -36,6 +37,11 @@ function AA:BuildDiagnosticText()
         'Scoring specialization: '..scoring.id..' Source: '..tostring(scoring.source)..' Uncertain: '..tostring(scoring.uncertain or false),
         'Scoring: internal / '..self.db.scoringMode,
         'Traits:'}
+    out[#out+1]='Rules: '..tostring(self.rulesRevision)..' / talent coverage: '..tostring(scoring.talentCoverage)
+    out[#out+1]='Applied talent modifiers: '..table.concat(scoring.talentAdjustments or {},', ')
+    local a=self.lastAssessment
+    if a then out[#out+1]=string.format('Search: %d operations / bounded=%s / slices=%s / max slice ms=%.2f',a.evaluated or 0,tostring(a.bounded or false),tostring(a.slices or 'synchronous'),a.maxSliceMs or 0) end
+    if self.lastAnalysisError then out[#out+1]='Analysis error: '..self.lastAnalysisError end
     for _,g in ipairs(self.traitSummary or {}) do out[#out+1]=tostring(g.name)..'='..g.points end
     out[#out+1]='Items (no character name or account data):'
     local items=self:CollectBagItems()
